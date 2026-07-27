@@ -1,0 +1,17 @@
+{
+  "messages": [],
+  "version": "0.3",
+  "data_call_name": "rpki-validation",
+  "data_call_status": "supported",
+  "cached": false,
+  "data": {
+    "validating_roas": [],
+    "status": "unknown",
+    "validator": "routinator",
+    "resource": "64500",
+    "prefix": "198.51.100.0/24"
+  },
+  "query_id": "fixture-rpki-2",
+  "status": "ok",
+  "status_code": 200
+}

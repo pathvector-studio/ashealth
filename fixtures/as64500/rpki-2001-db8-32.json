@@ -1,0 +1,17 @@
+{
+  "messages": [],
+  "version": "0.3",
+  "data_call_name": "rpki-validation",
+  "data_call_status": "supported",
+  "cached": false,
+  "data": {
+    "validating_roas": [],
+    "status": "unknown",
+    "validator": "routinator",
+    "resource": "64500",
+    "prefix": "2001:db8::/32"
+  },
+  "query_id": "fixture-rpki-4",
+  "status": "ok",
+  "status_code": 200
+}

@@ -1,0 +1,24 @@
+{
+  "messages": [],
+  "version": "0.3",
+  "data_call_name": "rpki-validation",
+  "data_call_status": "supported",
+  "cached": false,
+  "data": {
+    "validating_roas": [
+      {
+        "origin": "AS64501",
+        "prefix": "203.0.113.0/24",
+        "max_length": 24,
+        "validity": "invalid_asn"
+      }
+    ],
+    "status": "invalid_asn",
+    "validator": "routinator",
+    "resource": "64500",
+    "prefix": "203.0.113.0/24"
+  },
+  "query_id": "fixture-rpki-3",
+  "status": "ok",
+  "status_code": 200
+}

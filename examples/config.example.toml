@@ -1,0 +1,32 @@
+# ashealth 複数AS管理設定ファイルの例。
+#
+# 既定の配置場所: ~/.config/ashealth/config.toml
+# (XDG_CONFIG_HOME が設定されていればそちらを優先)
+#
+# 使い方:
+#   ashealth check --config ~/.config/ashealth/config.toml
+#   ashealth watch --config ~/.config/ashealth/config.toml --once
+#
+# --config だけ指定 (パス省略) すれば既定の配置場所を読みに行きます:
+#   ashealth check --config
+#   ashealth watch --config --once
+
+[defaults]
+# watch のチェック間隔 (秒)。既定 21600 = 6時間
+interval = 21600
+# 変化時にJSONをPOSTするWebhook URL (Discord Webhook互換)。省略可
+webhook = "https://discord.com/api/webhooks/xxxxxxxx/yyyyyyyy"
+# RPKI検証を行う広報プレフィックスの最大数 (ライブAPIの負荷抑制)。既定 50
+limit = 50
+
+# 監視対象のASを [[as]] で列挙する (1つ以上必須)
+[[as]]
+asn = 64500
+name = "本番AS"
+# per-AS override。省略時は defaults.webhook を継承
+webhook = "https://discord.com/api/webhooks/xxxxxxxx/prod-channel"
+
+[[as]]
+asn = 64501
+name = "検証AS"
+# webhook 省略 → defaults.webhook が使われる

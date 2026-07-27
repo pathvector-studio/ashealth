@@ -1,0 +1,21 @@
+[package]
+name = "ashealth"
+version = "0.6.1"
+edition = "2021"
+description = "AS運用の健康診断 — BGP / RPKI / IRR / PeeringDB の整合性チェッカー"
+license = "MIT"
+
+[dependencies]
+anyhow = "1"
+async-trait = "0.1"
+axum = "0.8"
+clap = { version = "4", features = ["derive"] }
+owo-colors = "4"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+toml = "0.8"
+
+[profile.release]
+strip = true

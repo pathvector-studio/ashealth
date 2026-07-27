@@ -1,0 +1,11 @@
+route:          198.51.100.0/24
+descr:          HEALTHY-NET primary block
+origin:         AS64501
+mnt-by:         MAINT-HEALTHY
+source:         RADB
+
+route6:         2001:db8:1::/32
+descr:          HEALTHY-NET IPv6 block
+origin:         AS64501
+mnt-by:         MAINT-HEALTHY
+source:         RADB

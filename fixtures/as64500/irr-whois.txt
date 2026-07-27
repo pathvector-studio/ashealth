@@ -1,0 +1,29 @@
+route:          192.0.2.0/24
+descr:          EXAMPLE-NET primary block
+origin:         AS64500
+mnt-by:         MAINT-EXAMPLE
+source:         RADB
+
+route:          192.0.2.0/24
+descr:          proxy object registered by former transit provider
+origin:         AS64501
+mnt-by:         MAINT-OLDTRANSIT
+source:         ALTDB
+
+route:          203.0.113.0/24
+descr:          EXAMPLE-NET hosting block
+origin:         AS64500
+mnt-by:         MAINT-EXAMPLE
+source:         RADB
+
+route:          203.0.113.128/25
+descr:          decommissioned customer block (no longer announced)
+origin:         AS64500
+mnt-by:         MAINT-EXAMPLE
+source:         RADB
+
+route6:         2001:db8::/32
+descr:          EXAMPLE-NET IPv6 block
+origin:         AS64500
+mnt-by:         MAINT-EXAMPLE
+source:         RADB

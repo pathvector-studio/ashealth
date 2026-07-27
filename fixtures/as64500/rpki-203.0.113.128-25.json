@@ -1,0 +1,24 @@
+{
+  "messages": [],
+  "version": "0.3",
+  "data_call_name": "rpki-validation",
+  "data_call_status": "supported",
+  "cached": false,
+  "data": {
+    "validating_roas": [
+      {
+        "origin": "AS64500",
+        "prefix": "203.0.113.128/25",
+        "max_length": 25,
+        "validity": "valid"
+      }
+    ],
+    "status": "valid",
+    "validator": "routinator",
+    "resource": "64500",
+    "prefix": "203.0.113.128/25"
+  },
+  "query_id": "fixture-rpki-5",
+  "status": "ok",
+  "status_code": 200
+}

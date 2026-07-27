@@ -1,0 +1,14 @@
+{
+  "data": [
+    {
+      "name": "HEALTHY-NET",
+      "policy_general": "Open",
+      "website": "https://healthy-net.example",
+      "netixlan_set": [
+        { "ix_id": 1 },
+        { "ix_id": 2 }
+      ]
+    }
+  ],
+  "meta": {}
+}
