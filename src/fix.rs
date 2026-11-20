@@ -111,6 +111,20 @@ pub fn rpsl_route_object(
     lines.join("\n")
 }
 
+/// 修正の緊急度 (小さいほど先)。`fix` の並び順と `report` の最重要アクション選定で共有する。
+/// (report.rs の減点ルール順と同じ思想)
+pub fn check_priority(check: &str) -> u8 {
+    match check {
+        "rpki-invalid" => 0,
+        "roa-missing" => 1,
+        "irr-missing" => 2,
+        "irr-origin-conflict" => 3,
+        "irr-stale" => 4,
+        "roa-unused" => 5,
+        _ => 6,
+    }
+}
+
 /// 所見リストから修正アーティファクトを導出する (純粋関数)。
 ///
 /// OK 所見は対象外。優先度順 (RPKI invalid → ROA未作成 → IRR未登録 →
@@ -122,19 +136,9 @@ pub fn remediations(input: &HealthInput, findings: &[Finding]) -> Vec<Remediatio
         .filter(|f| f.severity != Severity::Ok)
         .filter_map(|f| remediation_for(input, asn, f))
         .collect();
-    // 修正の緊急度順 (report.rs の減点ルール順と同じ思想)
-    let priority = |check: &str| match check {
-        "rpki-invalid" => 0,
-        "roa-missing" => 1,
-        "irr-missing" => 2,
-        "irr-origin-conflict" => 3,
-        "irr-stale" => 4,
-        "roa-unused" => 5,
-        _ => 6,
-    };
     out.sort_by(|a, b| {
-        priority(a.finding.check)
-            .cmp(&priority(b.finding.check))
+        check_priority(a.finding.check)
+            .cmp(&check_priority(b.finding.check))
             .then_with(|| a.finding.subject.cmp(&b.finding.subject))
     });
     out
