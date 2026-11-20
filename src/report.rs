@@ -478,4 +478,40 @@ mod tests {
             report.fix_actions.len()
         );
     }
+
+    /// `check --demo --json` (AS64500) のトップレベルキー集合を固定する。
+    #[tokio::test]
+    async fn demo_json_top_level_keys_are_pinned() {
+        use crate::checks::{collect, run_checks};
+        use crate::sources::{fixture::FixtureSource, DataSource};
+        use std::collections::BTreeSet;
+        use std::sync::Arc;
+
+        let src: Arc<dyn DataSource> = Arc::new(FixtureSource::new());
+        let input = collect(src, 64500, 50).await.unwrap();
+        let findings = run_checks(&input);
+        let rep = Report::build(&input, findings);
+        let v = serde_json::to_value(&rep).unwrap();
+        let keys: BTreeSet<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
+        let expected: BTreeSet<&str> = [
+            "announced_count",
+            "asn",
+            "coverage",
+            "deductions",
+            "findings",
+            "fix_actions",
+            "grade",
+            "grade_comment",
+            "holder",
+            "ipv4_count",
+            "ipv6_count",
+            "irr_route_count",
+            "notes",
+            "rpki_checked",
+            "score",
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(keys, expected);
+    }
 }

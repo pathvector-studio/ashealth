@@ -504,6 +504,18 @@ mod tests {
         }
     }
 
+    /// デモフィクスチャの `fix` 件数を固定する (AS64500 = 8 件、健全な AS64501 = 0 件)。
+    #[tokio::test]
+    async fn demo_fix_counts_are_pinned() {
+        for (asn, expected) in [(64500u32, 8usize), (64501, 0)] {
+            let src: Arc<dyn DataSource> = Arc::new(FixtureSource::new());
+            let input = collect(src, asn, 50).await.unwrap();
+            let findings = run_checks(&input);
+            let rems = remediations(&input, &findings);
+            assert_eq!(rems.len(), expected, "AS{asn} の fix 件数");
+        }
+    }
+
     #[tokio::test]
     async fn rpki_invalid_comes_first_and_shows_roa_mismatch() {
         let (_, rems) = demo_remediations().await;
