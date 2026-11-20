@@ -488,6 +488,46 @@ mod tests {
         assert_eq!(grade(score), 'E');
     }
 
+    fn severity_total(findings: &[Finding], sev: Severity) -> usize {
+        findings.iter().filter(|f| f.severity == sev).count()
+    }
+
+    /// デモフィクスチャ AS64500 の `check --demo` 結果 (スコア・グレード・重大度別件数) を固定する。
+    #[tokio::test]
+    async fn demo_as64500_check_result_is_pinned() {
+        let src: Arc<dyn DataSource> = Arc::new(FixtureSource::new());
+        let input = collect(src, 64500, 50).await.unwrap();
+        let findings = run_checks(&input);
+        let (score, deductions) = compute_score(&findings);
+
+        assert_eq!(score, 28);
+        assert_eq!(grade(score), 'E');
+        assert_eq!(findings.len(), 8);
+        assert_eq!(severity_total(&findings, Severity::Fail), 3);
+        assert_eq!(severity_total(&findings, Severity::Warn), 5);
+        assert_eq!(severity_total(&findings, Severity::Info), 0);
+        assert_eq!(severity_total(&findings, Severity::Ok), 0);
+        assert_eq!(deductions.len(), 7);
+    }
+
+    /// デモフィクスチャ AS64501 (健全) の `check --demo` 結果を固定する。
+    #[tokio::test]
+    async fn demo_as64501_check_result_is_pinned() {
+        let src: Arc<dyn DataSource> = Arc::new(FixtureSource::new());
+        let input = collect(src, 64501, 50).await.unwrap();
+        let findings = run_checks(&input);
+        let (score, deductions) = compute_score(&findings);
+
+        assert_eq!(score, 100);
+        assert_eq!(grade(score), 'A');
+        assert_eq!(findings.len(), 7);
+        assert_eq!(severity_total(&findings, Severity::Fail), 0);
+        assert_eq!(severity_total(&findings, Severity::Warn), 0);
+        assert_eq!(severity_total(&findings, Severity::Info), 0);
+        assert_eq!(severity_total(&findings, Severity::Ok), 7);
+        assert!(deductions.is_empty());
+    }
+
     fn healthy_input() -> HealthInput {
         HealthInput {
             overview: AsOverview {
