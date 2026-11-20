@@ -107,6 +107,32 @@ ashealth report --config --webhook https://discord.com/api/webhooks/... --json
 
 An operator-facing weekly/monthly digest per AS: current score/grade, **delta since the last `report` run**, the last-four score trend, and the top findings by severity — with a header giving the AS count, average score, and single most severe action across all ASes. Requires `--config`. Shares the `watch` state file, so its diff baseline advances independently of `watch`.
 
+#### Sample output (`ashealth report --config --demo`)
+
+Output from running `--demo` twice in a row against the bundled fixtures (AS64500 unhealthy, AS64501 healthy). The first run shows `初回` ("first run") instead of a delta; the second run, shown here, has only one history entry, so the trend is a single value and the delta is `±0`. The report output is currently Japanese only (there is no language switch).
+
+```
+  ashealth ─ 定期サマリレポート
+  ────────────────────────────────────────────────────────────────
+  対象AS数: 2件   平均スコア: 64点
+  最重要アクション: AS64500: [FAIL] 203.0.113.0/24 — RPKI invalid (invalid_asn) — ROV実施ネットワークからこの経路は破棄されます【最優先】
+  ────────────────────────────────────────────────────────────────
+
+  本番AS (AS64500)  スコア 28点 グレードE  前回比 ±0
+    FAIL 3件 / WARN 5件
+    トレンド: 28
+    上位所見:
+      - [FAIL] 198.51.100.0/24 — ROA未作成 — このプレフィックスをカバーするROAが存在せず、RPKI的に保護されていません
+      - [FAIL] 2001:db8::/32 — ROA未作成 — このプレフィックスをカバーするROAが存在せず、RPKI的に保護されていません
+      - [FAIL] 203.0.113.0/24 — RPKI invalid (invalid_asn) — ROV実施ネットワークからこの経路は破棄されます【最優先】
+
+  検証AS (AS64501)  スコア 100点 グレードA  前回比 ±0
+    FAIL 0件 / WARN 0件
+    トレンド: 100
+```
+
+Header: AS count (`対象AS数`), average score (`平均スコア`), and the single most severe action across all ASes (`最重要アクション`). Per AS: score/grade, delta vs. the last `report` (`前回比`), FAIL/WARN counts, the score trend (`トレンド`, up to the last four runs, e.g. `28 → 35 → 45 → 79` once history accumulates), and the top three findings by severity (`上位所見`).
+
 ## Managing multiple ASes (`--config`)
 
 `check`, `watch`, `report`, and `serve` all accept `--config <path>` (default `~/.config/ashealth/config.toml`) to operate on a list of ASes in one command. See [examples/config.example.toml](examples/config.example.toml).
