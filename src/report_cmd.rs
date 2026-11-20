@@ -518,6 +518,39 @@ mod tests {
         assert!(worst_across(&blocks).unwrap().contains("rpki invalid"));
     }
 
+    #[test]
+    fn worst_across_tie_across_as_keeps_first_as_even_with_smaller_subject() {
+        // 深刻度・チェックとも同じ。後のASの subject の方が小さくても、別ASなので先のASを採る。
+        let blocks = vec![
+            (
+                64501,
+                vec![finding(1, Severity::Fail, Some("z"), "first as")],
+            ),
+            (
+                64500,
+                vec![finding(1, Severity::Fail, Some("a"), "second as")],
+            ),
+        ];
+        let top = worst_across(&blocks).unwrap();
+        assert!(top.starts_with("AS64501:"), "{top}");
+        assert!(top.contains("first as"), "{top}");
+    }
+
+    #[test]
+    fn worst_across_tie_within_as_picks_smallest_subject_regardless_of_input_order() {
+        // 同一AS・同じチェックで subject だけ違う所見。入力順 (z, m, a) に依らず昇順最小 "a" を採る。
+        let blocks = vec![(
+            64500,
+            vec![
+                finding(1, Severity::Fail, Some("z"), "subject z"),
+                finding(1, Severity::Fail, Some("m"), "subject m"),
+                finding(1, Severity::Fail, Some("a"), "subject a"),
+            ],
+        )];
+        let top = worst_across(&blocks).unwrap();
+        assert!(top.contains("subject a"), "{top}");
+    }
+
     #[tokio::test]
     async fn demo_top_action_matches_fix_top_priority() {
         use crate::checks::{collect, run_checks};
