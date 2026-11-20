@@ -113,6 +113,8 @@ pub fn rpsl_route_object(
 
 /// 修正の緊急度 (小さいほど先)。`fix` の並び順と `report` の最重要アクション選定で共有する。
 /// (report.rs の減点ルール順と同じ思想)
+///
+/// report 側 (`report_cmd::worst_across`) では深刻度を先に比べ、同じ深刻度のときにこの優先度で選ぶ。
 pub fn check_priority(check: &str) -> u8 {
     match check {
         "rpki-invalid" => 0,
