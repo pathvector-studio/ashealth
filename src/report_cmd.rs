@@ -9,6 +9,7 @@
 
 use crate::checks::{self, Finding, Severity};
 use crate::config::{AsEntry, Config};
+use crate::fix;
 use crate::report::Report;
 use crate::sources::{fixture::FixtureSource, DataSource, LiveSource};
 use crate::watch::{self, HistoryEntry, WatchState};
@@ -128,15 +129,29 @@ pub fn compute_delta(
     Some(current_score - baseline.score)
 }
 
-/// 全AS中もっとも深刻な所見を選ぶ (FAIL優先、同深刻度ならAS番号昇順) (純粋関数)。
+/// 全AS中もっとも深刻な所見を選ぶ (純粋関数)。
+/// 深刻度 (FAIL優先) → `fix` と共通の修正優先度 ([`fix::check_priority`]) の順で比べ、
+/// 同順位なら同一ASでは `fix` と同じく subject 昇順、別ASでは先に現れた方を採る。
 pub fn worst_across(blocks: &[(u32, Vec<Finding>)]) -> Option<String> {
     let mut worst: Option<(&Finding, u32)> = None;
     for (asn, findings) in blocks {
         for f in findings.iter().filter(|f| f.severity != Severity::Ok) {
             worst = match worst {
                 None => Some((f, *asn)),
-                Some((w, _)) if f.severity > w.severity => Some((f, *asn)),
-                other => other,
+                Some((w, w_asn)) => {
+                    let key =
+                        |x: &Finding| (std::cmp::Reverse(x.severity), fix::check_priority(x.check));
+                    let better = match key(f).cmp(&key(w)) {
+                        std::cmp::Ordering::Less => true,
+                        std::cmp::Ordering::Equal => *asn == w_asn && f.subject < w.subject,
+                        std::cmp::Ordering::Greater => false,
+                    };
+                    if better {
+                        Some((f, *asn))
+                    } else {
+                        Some((w, w_asn))
+                    }
+                }
             };
         }
     }
@@ -491,6 +506,29 @@ mod tests {
         ];
         let worst = worst_across(&blocks);
         assert!(worst.unwrap().contains("AS64501"));
+    }
+
+    #[test]
+    fn worst_across_uses_fix_priority_within_same_severity() {
+        let mut inv = finding(2, Severity::Fail, Some("z"), "rpki invalid");
+        inv.check = "rpki-invalid";
+        let mut miss = finding(1, Severity::Fail, Some("a"), "roa missing");
+        miss.check = "roa-missing";
+        let blocks = vec![(64500, vec![miss, inv])];
+        assert!(worst_across(&blocks).unwrap().contains("rpki invalid"));
+    }
+
+    #[tokio::test]
+    async fn demo_top_action_matches_fix_top_priority() {
+        use crate::checks::{collect, run_checks};
+        let src: Arc<dyn DataSource> = Arc::new(FixtureSource::new());
+        let input = collect(src, 64500, 50).await.unwrap();
+        let findings = run_checks(&input);
+        let rems = fix::remediations(&input, &findings);
+        let top_fix = &rems[0].finding;
+        assert_eq!(top_fix.check, "rpki-invalid");
+        let top = worst_across(&[(64500, findings.clone())]).unwrap();
+        assert_eq!(top, format!("AS64500: {}", describe_finding(top_fix)));
     }
 
     #[test]
