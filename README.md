@@ -97,7 +97,7 @@ ashealth watch AS64496 --interval 21600 --webhook https://discord.com/api/webhoo
 ashealth watch AS64496 --once      # run one cycle and exit (cron / systemd timer)
 ```
 
-Re-runs `check` on a schedule (default every 21600s = 6h) and POSTs JSON to `--webhook` on any change (new/resolved findings, score delta). The payload includes a Japanese one-line `content` field, so a **Discord webhook URL works out of the box**. State persists to `~/.local/state/ashealth/asXXXX.json` (score history included); `--state` overrides the location. `--limit` (default 50) caps the prefixes sent for RPKI validation, as in `check`. With `--config`, the interval and limit come from the config file (`--interval` / `--limit` are not used).
+Re-runs `check` on a schedule (default every 21600s = 6h) and POSTs JSON to `--webhook` on any change (new/resolved findings, score delta). The payload includes a Japanese one-line `content` field, so a **Discord webhook URL works out of the box**. State persists to `asXXXX.json` (score history included), under `$XDG_STATE_HOME/ashealth/` if that variable is set, otherwise `~/.local/state/ashealth/`. `--state <path>` overrides the location: it is the state file itself for `watch <ASN>`, or a directory (holding `asXXXX.json`) with `--config`. `--limit` (default 50) caps the prefixes sent for RPKI validation, as in `check`. With `--config`, the interval and limit come from the config file (`--interval` / `--limit` are not used).
 
 ### `report` — periodic digest
 
@@ -106,9 +106,9 @@ ashealth report --config ~/.config/ashealth/config.toml
 ashealth report --config --webhook https://discord.com/api/webhooks/... --json
 ```
 
-An operator-facing weekly/monthly digest per AS: current score/grade, **delta since the last `report` run**, the score trend (up to four earlier runs), and the top findings by severity — with a header giving the AS count, average score, and single most severe action across all ASes. Requires `--config`. Shares the `watch` state file, so its diff baseline advances independently of `watch`.
+An operator-facing weekly/monthly digest per AS: current score/grade, **delta since the last `report` run**, the score trend (up to four earlier runs), and the top findings by severity — with a header giving the AS count, average score, and single most severe action across all ASes. Requires `--config`.
 
-The state file is shared with `watch` (`asXXXX.json`, under `$XDG_STATE_HOME/ashealth/` if that variable is set, otherwise `~/.local/state/ashealth/`; `--state <dir>` overrides the directory). It keeps the score history (the most recent 90 entries, oldest dropped first) and `last_report_at`, the time of the previous `report` run. Every `report` run appends to the history and updates `last_report_at`, which is what moves the delta baseline.
+The state file is shared with `watch` (`asXXXX.json`, under `$XDG_STATE_HOME/ashealth/` if that variable is set, otherwise `~/.local/state/ashealth/`; `--state <dir>` overrides the directory). It keeps the score history (the most recent 90 entries, oldest dropped first) and `last_report_at`, the time of the previous `report` run. Every `report` run appends to the history and updates `last_report_at`, which is what moves the delta baseline; `watch` runs append to the history but leave `last_report_at` as it was, so the diff baseline advances independently of `watch`.
 
 `--webhook <URL>` POSTs one JSON payload after the run. It has a Japanese one-line summary in `content` (so a Discord webhook URL works as-is), plus `as_count`, `avg_score`, `top_action` (`null` if there is no finding), and `blocks` (the full per-AS blocks: `asn`, `label`, `score`, `grade`, `fail_count`, `warn_count`, `delta`, `trend`, `top_findings`). `--json` prints the same fields, without `content`, to stdout. The webhook client is shared with `watch`.
 
