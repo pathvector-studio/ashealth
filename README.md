@@ -76,7 +76,7 @@ Where `check` says *what* is wrong, `fix` produces the actual artifacts you subm
 ashealth fix AS64496                 # human-readable report (default)
 ashealth fix AS64496 --format rpsl   # paste-ready RPSL objects only (> objects.txt)
 ashealth fix AS64496 --format json   # structured [{finding, artifact_type, artifact, submission_hint}]
-ashealth fix AS64496 --limit 100     # same prefix cap as `check` (default 50)
+ashealth fix AS64496 --limit 100     # same prefix cap as `check` (default 50; 0 is rejected)
 ```
 
 Recommended ROA `maxLength` is pinned to the **currently announced prefix length** (a wider maxLength opens the door to forged-origin subprefix hijacks of unannounced more-specifics). RPKI-invalid findings show the announcement-vs-ROA mismatch and offer both paths — **fix the ROA** or **fix the announcement**. Stale IRR / origin-conflict findings emit delete objects with a `delete:` line.
@@ -97,7 +97,7 @@ ashealth watch AS64496 --interval 21600 --webhook https://discord.com/api/webhoo
 ashealth watch AS64496 --once      # run one cycle and exit (cron / systemd timer)
 ```
 
-Re-runs `check` on a schedule (default every 21600s = 6h) and POSTs JSON to `--webhook` on any change (new/resolved findings, score delta). The payload includes a Japanese one-line `content` field, so a **Discord webhook URL works out of the box**. State persists to `asXXXX.json` (score history included), under `$XDG_STATE_HOME/ashealth/` if that variable is set, otherwise `~/.local/state/ashealth/`. `--state <path>` overrides the location: it is the state file itself for `watch <ASN>`, or a directory (holding `asXXXX.json`) with `--config`. `--limit` (default 50) caps the prefixes sent for RPKI validation, as in `check`. With `--config`, the interval and limit come from the config file (`--interval` / `--limit` are not used).
+Re-runs `check` on a schedule (default every 21600s = 6h) and POSTs JSON to `--webhook` on any change (new/resolved findings, score delta). The payload includes a Japanese one-line `content` field, so a **Discord webhook URL works out of the box**. State persists to `asXXXX.json` (score history included), under `$XDG_STATE_HOME/ashealth/` if that variable is set, otherwise `~/.local/state/ashealth/`. `--state <path>` overrides the location: it is the state file itself for `watch <ASN>`, or a directory (holding `asXXXX.json`) with `--config`. `--limit` (default 50) caps the prefixes sent for RPKI validation, as in `check`. With `--config`, the interval and limit come from the config file (`--interval` / `--limit` are not used); if the file omits them, the built-in defaults (21600s / 50) apply, not the CLI values. `--webhook` is not used either: each AS uses its own `webhook`, falling back to `[defaults]`.
 
 ### `report` — periodic digest
 
