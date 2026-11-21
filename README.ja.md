@@ -386,7 +386,7 @@ examples/config.example.toml  複数AS管理設定ファイルのサンプル
 
 - 所見の同一性は「チェック種別 + プレフィックス + 深刻度」で判定
 - 状態は既定で `asXXXX.json` に永続化(`$XDG_STATE_HOME` が設定されていれば `$XDG_STATE_HOME/ashealth/`、未設定なら `~/.local/state/ashealth/` 配下)。`--state <path>` で変更可(`watch <ASN>` ではファイルそのもの、`--config` 使用時はディレクトリ)
-  - **`--demo` 実行時は `~/.local/state/ashealth/demo/asXXXX.json`**(`demo/` サブディレクトリ)に書きます。
+  - **`--demo` 実行時は既定の状態ディレクトリ配下の `demo/asXXXX.json`**(`$XDG_STATE_HOME` 未設定なら `~/.local/state/ashealth/demo/asXXXX.json`)に書きます。
     デモを何度も試した結果が実運用の監視状態・スコア履歴に混ざらないようにするためです。`--state` で
     明示的にパスを指定した場合はそちらが優先されます
 - 変化があったとき(および初回)に `--webhook` の URL へ JSON を POST
