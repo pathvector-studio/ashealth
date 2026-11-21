@@ -92,7 +92,7 @@ enum Cmd {
         /// 変化時にJSONをPOSTするWebhook URL (Discord Webhook互換のcontent付き)
         #[arg(long)]
         webhook: Option<String>,
-        /// 状態ファイルのパス (既定: ~/.local/state/ashealth/asXXXX.json)。
+        /// 状態ファイルのパス (既定: $XDG_STATE_HOME/ashealth/asXXXX.json、未設定なら ~/.local/state/ashealth/asXXXX.json)。
         /// --config 使用時はこのディレクトリ配下に asXXXX.json を作る
         #[arg(long)]
         state: Option<std::path::PathBuf>,
@@ -123,7 +123,7 @@ enum Cmd {
         /// レポートをJSONで出力する
         #[arg(long)]
         json: bool,
-        /// 状態ファイルを置くディレクトリ (既定: ~/.local/state/ashealth/)
+        /// 状態ファイルを置くディレクトリ (既定: $XDG_STATE_HOME/ashealth/、未設定なら ~/.local/state/ashealth/)
         #[arg(long)]
         state: Option<std::path::PathBuf>,
     },

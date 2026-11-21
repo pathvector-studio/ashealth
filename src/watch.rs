@@ -168,7 +168,7 @@ pub fn finding_keys(report: &Report) -> Vec<FindingKey> {
 /// (未設定なら `~/.local/state/ashealth/asXXXX.json`)。
 ///
 /// `demo == true` の場合は実運用の状態ファイルを汚染しないよう `demo/` サブディレクトリに書く
-/// (`~/.local/state/ashealth/demo/asXXXX.json`)。デモを何度も試した結果が
+/// (`$XDG_STATE_HOME/ashealth/demo/asXXXX.json`、未設定なら `~/.local/state/ashealth/demo/asXXXX.json`)。デモを何度も試した結果が
 /// 実際の監視状態(スコア履歴・差分基準)に混ざらないようにするため。
 pub fn default_state_path_for(asn: u32, demo: bool) -> PathBuf {
     let base = std::env::var_os("XDG_STATE_HOME")
