@@ -538,13 +538,14 @@ mod tests {
 
     #[test]
     fn worst_across_tie_within_as_picks_smallest_subject_regardless_of_input_order() {
-        // 同一AS・同じチェックで subject だけ違う所見。入力順 (z, m, a) に依らず昇順最小 "a" を採る。
+        // 同一AS・同じチェックで subject だけ違う所見。入力順 (m, a, z) に依らず昇順最小 "a" を採る。
+        // 入力順は昇順でも降順でもなく、先勝ち (m) でも後勝ち (z) でも期待値にならない。
         let blocks = vec![(
             64500,
             vec![
-                finding(1, Severity::Fail, Some("z"), "subject z"),
                 finding(1, Severity::Fail, Some("m"), "subject m"),
                 finding(1, Severity::Fail, Some("a"), "subject a"),
+                finding(1, Severity::Fail, Some("z"), "subject z"),
             ],
         )];
         let top = worst_across(&blocks).unwrap();
