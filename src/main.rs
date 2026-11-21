@@ -459,6 +459,36 @@ mod tests {
         assert!(validate_asn(13335).unwrap().is_empty());
     }
 
+    /// 各帯の境界値を固定する。実装の判定範囲は 64496-64511 / 64512-65535 /
+    /// 4200000000-4294967295 のみで、32bitのドキュメント用帯 (65536-65551, RFC 5398) は
+    /// 現状どの帯にも含まれず警告なしで通る (挙動の記録であり、仕様としての推奨ではない)。
+    #[test]
+    fn validate_asn_boundary_values() {
+        // 警告なし: 最小値、ドキュメント帯の直前、実運用ASN。
+        for asn in [1, 64495, 13335] {
+            assert!(validate_asn(asn).unwrap().is_empty(), "AS{asn}");
+        }
+        // 警告あり (ちょうど1件): 各帯の端。
+        for asn in [
+            64496,
+            64511,
+            64512,
+            65534,
+            65535,
+            4_200_000_000,
+            4_294_967_294,
+            4_294_967_295,
+        ] {
+            assert_eq!(validate_asn(asn).unwrap().len(), 1, "AS{asn}");
+        }
+        // 32bit private-use 帯の直前は警告なし。
+        assert!(validate_asn(4_199_999_999).unwrap().is_empty());
+        // 32bit ドキュメント帯 (65536-65551) は現状警告なし。
+        for asn in [65536, 65551] {
+            assert!(validate_asn(asn).unwrap().is_empty(), "AS{asn}");
+        }
+    }
+
     #[test]
     fn validate_asn_or_warn_errors_only_on_as_zero_and_as_trans() {
         assert!(validate_asn_or_warn(0).is_err());
