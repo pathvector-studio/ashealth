@@ -48,12 +48,14 @@ ashealth check --demo
 ashealth fix <AS番号>                # 人間向けの日本語レポート (既定)
 ashealth fix <AS番号> --format rpsl  # 貼り付け用RPSLオブジェクトのみ (> objects.txt でファイル化)
 ashealth fix <AS番号> --format json  # 構造化JSON (自動化・他ツール連携向け)
+ashealth fix <AS番号> --limit 100    # RPKI検証するprefix数の上限 (check と同じ。既定50)
 ashealth fix --demo                  # フィクスチャ(AS64500)でデモ実行
 
 # Web UI (フォームにAS番号を入れて診断。64500=不健全フィクスチャ / 64501=健全フィクスチャ、常時オフライン応答)
 ashealth serve --port 8080
 ashealth serve --port 8080 --rate-limit 10 --cache-ttl 600
 ashealth serve --port 8080 --demo    # 完全オフラインデモモード。全ASNをフィクスチャ(AS64500)で応答、ライブAPIには一切アクセスしない
+#   --port       : 待ち受けポート (既定8080)
 #   --rate-limit : /api/check のIPあたり許可回数/分 (既定10、超過は429。0で無制限)
 #   --cache-ttl  : 診断結果キャッシュの保持秒数 (既定600、0で無効)
 #   --port が使用中の場合は「ポートNは使用中です。別の --port を指定してください」と案内して終了
@@ -385,7 +387,8 @@ examples/config.example.toml  複数AS管理設定ファイルのサンプル
 - 変化があったとき(および初回)に `--webhook` の URL へ JSON を POST
   - ペイロード: `{"asn":..., "score":..., "grade":..., "new":[...], "resolved":[...], "summary":"..."}`
   - あわせて日本語1行サマリの `content` フィールドを含むため、**Discord の Webhook URL をそのまま指定するだけで通知が届きます**
-- `--once` で1サイクルだけ実行して終了(cron / systemd timer 向け)。指定しなければ `--interval` 秒(既定 21600 = 6時間)ごとにループ
+- `--once` で1サイクルだけ実行して終了(cron / systemd timer 向け)。指定しなければ `--interval` 秒(既定 21600 = 6時間)ごとにループ(`--config` 使用時は設定ファイルの `interval` を使い、`--interval` は使われません)
+- `--limit` でRPKI検証するprefix数の上限を変更可(既定 50。`check` と同じ。`--config` 使用時は設定ファイルの `limit` を使います)
 
 ## 複数AS管理 (`--config`)
 

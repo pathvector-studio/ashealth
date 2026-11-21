@@ -76,6 +76,7 @@ Where `check` says *what* is wrong, `fix` produces the actual artifacts you subm
 ashealth fix AS64496                 # human-readable report (default)
 ashealth fix AS64496 --format rpsl   # paste-ready RPSL objects only (> objects.txt)
 ashealth fix AS64496 --format json   # structured [{finding, artifact_type, artifact, submission_hint}]
+ashealth fix AS64496 --limit 100     # same prefix cap as `check` (default 50)
 ```
 
 Recommended ROA `maxLength` is pinned to the **currently announced prefix length** (a wider maxLength opens the door to forged-origin subprefix hijacks of unannounced more-specifics). RPKI-invalid findings show the announcement-vs-ROA mismatch and offer both paths — **fix the ROA** or **fix the announcement**. Stale IRR / origin-conflict findings emit delete objects with a `delete:` line.
@@ -87,7 +88,7 @@ ashealth serve --port 8080
 ashealth serve --port 8080 --rate-limit 10 --cache-ttl 600
 ```
 
-An embedded single-page UI (plain JS, no build step): enter an ASN, get the report. `--rate-limit` caps `/api/check` requests per IP per minute (default 10; 0 = unlimited); `--cache-ttl` is the result-cache lifetime in seconds (default 600; 0 = off). `AS64500` and `AS64501` always answer from bundled fixtures, so the UI is demoable without any live traffic.
+An embedded single-page UI (plain JS, no build step): enter an ASN, get the report. `--port` is the listen port (default 8080); `--rate-limit` caps `/api/check` requests per IP per minute (default 10; 0 = unlimited); `--cache-ttl` is the result-cache lifetime in seconds (default 600; 0 = off). `AS64500` and `AS64501` always answer from bundled fixtures, so the UI is demoable without any live traffic.
 
 ### `watch` — change detection
 
@@ -96,7 +97,7 @@ ashealth watch AS64496 --interval 21600 --webhook https://discord.com/api/webhoo
 ashealth watch AS64496 --once      # run one cycle and exit (cron / systemd timer)
 ```
 
-Re-runs `check` on a schedule (default every 21600s = 6h) and POSTs JSON to `--webhook` on any change (new/resolved findings, score delta). The payload includes a Japanese one-line `content` field, so a **Discord webhook URL works out of the box**. State persists to `~/.local/state/ashealth/asXXXX.json` (score history included); `--state` overrides the location.
+Re-runs `check` on a schedule (default every 21600s = 6h) and POSTs JSON to `--webhook` on any change (new/resolved findings, score delta). The payload includes a Japanese one-line `content` field, so a **Discord webhook URL works out of the box**. State persists to `~/.local/state/ashealth/asXXXX.json` (score history included); `--state` overrides the location. `--limit` (default 50) caps the prefixes sent for RPKI validation, as in `check`. With `--config`, the interval and limit come from the config file (`--interval` / `--limit` are not used).
 
 ### `report` — periodic digest
 
@@ -151,7 +152,7 @@ Notes on reading the output:
 
 ## Managing multiple ASes (`--config`)
 
-`check`, `watch`, `report`, and `serve` all accept `--config <path>` (default `~/.config/ashealth/config.toml`) to operate on a list of ASes in one command. See [examples/config.example.toml](examples/config.example.toml).
+`check`, `watch`, `report`, and `serve` all accept `--config <path>` (default `$XDG_CONFIG_HOME/ashealth/config.toml` if that variable is set, otherwise `~/.config/ashealth/config.toml`; omit the path to use the default) to operate on a list of ASes in one command. See [examples/config.example.toml](examples/config.example.toml).
 
 ```toml
 [defaults]
