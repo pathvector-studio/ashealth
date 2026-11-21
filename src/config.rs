@@ -68,7 +68,7 @@ pub fn default_config_path() -> PathBuf {
 pub fn load(path: &Path) -> Result<Config> {
     let text = std::fs::read_to_string(path).with_context(|| {
         format!(
-            "設定ファイルが読み込めません: {} (--config でパスを指定するか、ashealth config example を参考に作成してください)",
+            "設定ファイルが読み込めません: {} (--config でパスを指定するか、リポジトリの examples/config.example.toml を参考に作成してください)",
             path.display()
         )
     })?;
@@ -325,6 +325,23 @@ name = "カスタムAS"
         let cfg = load_for_demo(&path, true).unwrap();
         assert_eq!(cfg.entries.len(), 1);
         assert_eq!(cfg.entries[0].asn, 12345);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 読めない設定ファイルのエラーは、実在するサンプル (examples/config.example.toml) を案内し、
+    /// 存在しないサブコマンド (ashealth config example) を案内しない。
+    #[test]
+    fn load_error_points_to_example_file() {
+        let dir = std::env::temp_dir().join(format!(
+            "ashealth-load-error-hint-test-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("missing.toml");
+        let err = load(&path).unwrap_err();
+        let msg = format!("{:#}", err);
+        assert!(msg.contains("examples/config.example.toml"), "{msg}");
+        assert!(!msg.contains("ashealth config example"), "{msg}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
