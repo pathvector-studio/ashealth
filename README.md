@@ -105,7 +105,17 @@ ashealth report --config ~/.config/ashealth/config.toml
 ashealth report --config --webhook https://discord.com/api/webhooks/... --json
 ```
 
-An operator-facing weekly/monthly digest per AS: current score/grade, **delta since the last `report` run**, the last-four score trend, and the top findings by severity — with a header giving the AS count, average score, and single most severe action across all ASes. Requires `--config`. Shares the `watch` state file, so its diff baseline advances independently of `watch`.
+An operator-facing weekly/monthly digest per AS: current score/grade, **delta since the last `report` run**, the score trend (up to four earlier runs), and the top findings by severity — with a header giving the AS count, average score, and single most severe action across all ASes. Requires `--config`. Shares the `watch` state file, so its diff baseline advances independently of `watch`.
+
+The state file is shared with `watch` (`asXXXX.json`, under `~/.local/state/ashealth/` by default; `--state <dir>` overrides the directory). It keeps the score history (the most recent 90 entries, oldest dropped first) and `last_report_at`, the time of the previous `report` run. Every `report` run appends to the history and updates `last_report_at`, which is what moves the delta baseline.
+
+`--webhook <URL>` POSTs one JSON payload after the run. It has a Japanese one-line summary in `content` (so a Discord webhook URL works as-is), plus `as_count`, `avg_score`, `top_action` (`null` if there is no finding), and `blocks` (the full per-AS blocks: `asn`, `label`, `score`, `grade`, `fail_count`, `warn_count`, `delta`, `trend`, `top_findings`). `--json` prints the same fields, without `content`, to stdout. The webhook client is shared with `watch`.
+
+Example cron entry, sending a weekly report every Sunday at 03:00:
+
+```cron
+0 3 * * 0 /usr/local/bin/ashealth report --config --webhook https://discord.com/api/webhooks/... >> /var/log/ashealth-report.log 2>&1
+```
 
 #### Sample output (`ashealth report --config --demo`)
 
@@ -131,7 +141,13 @@ Output from running `--demo` twice in a row against the bundled fixtures (AS6450
     トレンド: 100
 ```
 
-Header: AS count (`対象AS数`), average score (`平均スコア`), and the single most severe action across all ASes (`最重要アクション`). Per AS: score/grade, delta vs. the last `report` (`前回比`), FAIL/WARN counts, the score trend (`トレンド`, up to the last four runs, e.g. `28 → 35 → 45 → 79` once history accumulates), and the top three findings by severity (`上位所見`).
+Header: AS count (`対象AS数`), average score (`平均スコア`), and the single most severe action across all ASes (`最重要アクション`). Per AS: score/grade, delta vs. the last `report` (`前回比`), FAIL/WARN counts, the score trend (`トレンド`, e.g. `28 → 35 → 45 → 79` once history accumulates), and the top three findings by severity (`上位所見`).
+
+Notes on reading the output:
+
+- The trend is built from the history shared with `watch`, **excluding the current run**: up to the four most recent earlier entries, oldest first. So the first run shows no trend, and `watch` runs also feed it.
+- The delta is `初回` until `last_report_at` exists, i.e. only on the very first `report` run for an AS. Running `watch` first does not remove it.
+- `--demo` keeps its own state under `~/.local/state/ashealth/demo/` (`asXXXX.json`; `$XDG_STATE_HOME` is honored, and with `--state <dir>` the files go directly in that directory). If those files are left over from earlier runs, even your first `--demo` run will not show `初回` and will already have a trend. Delete them to reproduce the sample above.
 
 ## Managing multiple ASes (`--config`)
 
