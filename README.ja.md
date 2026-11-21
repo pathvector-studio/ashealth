@@ -489,7 +489,8 @@ ashealth report --config <path> --json                    # 構造化JSONで出�
 ashealth report --config <path> --webhook <URL>           # 完了後にDiscord Webhook互換payloadをPOST
 ```
 
-状態ファイルは `watch` と共有(`asXXXX.json`)し、履歴(直近90件のスコア推移)と
+状態ファイルは `watch` と共有(`asXXXX.json`。既定の置き場所は、`$XDG_STATE_HOME` が設定されていれば
+`$XDG_STATE_HOME/ashealth/`、未設定なら `~/.local/state/ashealth/`。`--state <dir>` でディレクトリを変更可)し、履歴(直近90件のスコア推移)と
 `last_report_at`(前回report実行時刻)を書き込みます。**`report` を実行するたびに
 差分の基準点が更新される**ため、`watch` の変化検知とは独立して運用できます。
 
@@ -518,6 +519,18 @@ ashealth report --config <path> --webhook <URL>           # 完了後にDiscord 
 
 運用が進み履歴が積み上がると、トレンド行は `28 → 35 → 45 → 79` のように直近4回分の
 推移を表示するようになります。
+
+読み方の補足:
+
+- トレンドは `watch` と共有する履歴から、**今回の実行分を除いた**直近最大4件を古い順に表示します。
+  そのためトレンドが空になるのは状態ファイルにまだ履歴が無い場合だけで、`watch` がすでに履歴を
+  記録していれば、初回の `report` でもトレンドが表示されます。
+- 差分が「初回」になるのは `last_report_at` が無いとき、つまりそのASで最初の `report` 実行時だけです。
+  先に `watch` を実行していても「初回」のままです。
+- `--demo` の状態は既定の状態ディレクトリ配下の `demo/` に分けて保存されます
+  (`$XDG_STATE_HOME` 未設定なら `~/.local/state/ashealth/demo/asXXXX.json`。`--state <dir>` 指定時は
+  そのディレクトリ直下)。過去の実行で残っていると、1回目の `--demo` 実行でも「初回」にならず、
+  すでにトレンドが表示されます。上の出力例を再現するには、これらのファイルを削除してください。
 
 `--webhook` を指定すると、Discord Webhook がそのまま解釈できる日本語コンパクトサマリ
 (`content` フィールド)に加え、`as_count` / `avg_score` / `top_action` / `blocks`(各ASブロックの

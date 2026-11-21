@@ -107,7 +107,7 @@ ashealth report --config --webhook https://discord.com/api/webhooks/... --json
 
 An operator-facing weekly/monthly digest per AS: current score/grade, **delta since the last `report` run**, the score trend (up to four earlier runs), and the top findings by severity — with a header giving the AS count, average score, and single most severe action across all ASes. Requires `--config`. Shares the `watch` state file, so its diff baseline advances independently of `watch`.
 
-The state file is shared with `watch` (`asXXXX.json`, under `~/.local/state/ashealth/` by default; `--state <dir>` overrides the directory). It keeps the score history (the most recent 90 entries, oldest dropped first) and `last_report_at`, the time of the previous `report` run. Every `report` run appends to the history and updates `last_report_at`, which is what moves the delta baseline.
+The state file is shared with `watch` (`asXXXX.json`, under `$XDG_STATE_HOME/ashealth/` if that variable is set, otherwise `~/.local/state/ashealth/`; `--state <dir>` overrides the directory). It keeps the score history (the most recent 90 entries, oldest dropped first) and `last_report_at`, the time of the previous `report` run. Every `report` run appends to the history and updates `last_report_at`, which is what moves the delta baseline.
 
 `--webhook <URL>` POSTs one JSON payload after the run. It has a Japanese one-line summary in `content` (so a Discord webhook URL works as-is), plus `as_count`, `avg_score`, `top_action` (`null` if there is no finding), and `blocks` (the full per-AS blocks: `asn`, `label`, `score`, `grade`, `fail_count`, `warn_count`, `delta`, `trend`, `top_findings`). `--json` prints the same fields, without `content`, to stdout. The webhook client is shared with `watch`.
 
@@ -145,9 +145,9 @@ Header: AS count (`対象AS数`), average score (`平均スコア`), and the sin
 
 Notes on reading the output:
 
-- The trend is built from the history shared with `watch`, **excluding the current run**: up to the four most recent earlier entries, oldest first. So the first run shows no trend, and `watch` runs also feed it.
+- The trend is built from the history shared with `watch`, **excluding the current run**: up to the four most recent earlier entries, oldest first. So the trend is empty only when there is no history yet in the state file; if `watch` has already recorded history, even the first `report` run shows a trend. `watch` runs also feed it.
 - The delta is `初回` until `last_report_at` exists, i.e. only on the very first `report` run for an AS. Running `watch` first does not remove it.
-- `--demo` keeps its own state under `~/.local/state/ashealth/demo/` (`asXXXX.json`; `$XDG_STATE_HOME` is honored, and with `--state <dir>` the files go directly in that directory). If those files are left over from earlier runs, even your first `--demo` run will not show `初回` and will already have a trend. Delete them to reproduce the sample above.
+- `--demo` keeps its own state in a `demo/` subdirectory of the default state directory (`~/.local/state/ashealth/demo/asXXXX.json` when `$XDG_STATE_HOME` is unset; with `--state <dir>` the files go directly in that directory). If those files are left over from earlier runs, even your first `--demo` run will not show `初回` and will already have a trend. Delete them to reproduce the sample above.
 
 ## Managing multiple ASes (`--config`)
 
