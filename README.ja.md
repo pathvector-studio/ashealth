@@ -81,8 +81,11 @@ ashealth report --config --demo        # フィクスチャ(AS64500/AS64501)で�
 
 ## AS番号の検証
 
-診断対象のAS番号は、実運用上意味を持つASNかどうかを事前にチェックします(`check` / `fix` / `watch` の
-ライブ実行、および `serve` の `/api/check/{asn}`)。CLI の `--demo` 実行時はこの検証をスキップします
+診断対象のAS番号は、実運用上意味を持つASNかどうかを事前にチェックします(AS番号を引数で指定した
+`check` / `fix` / `watch` のライブ実行、および `serve` の `/api/check/{asn}`)。`--config` による複数AS経路
+(`check --config` / `watch --config` / `report`)と `serve --config` のダッシュボードでは、設定ファイル内の
+AS番号に対してこの検証は行いません(設定ファイル読み込み時は `asn = 0` と重複のみ拒否します)。
+CLI の `--demo` 実行時はこの検証をスキップします
 (バンドルされたフィクスチャ AS64500/AS64501 自体がドキュメント用予約帯に属するため)。`serve --demo` では
 予約帯は許可しますが、`AS0` / `AS23456` は引き続き拒否します。
 
