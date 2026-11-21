@@ -385,7 +385,7 @@ examples/config.example.toml  複数AS管理設定ファイルのサンプル
 `watch` は check を定期実行し、**前回結果との差分**(新規所見 / 解消所見 / スコア変化)を検出します。
 
 - 所見の同一性は「チェック種別 + プレフィックス + 深刻度」で判定
-- 状態は既定で `~/.local/state/ashealth/asXXXX.json` に永続化(`--state` で変更可)
+- 状態は既定で `asXXXX.json` に永続化(`$XDG_STATE_HOME` が設定されていれば `$XDG_STATE_HOME/ashealth/`、未設定なら `~/.local/state/ashealth/` 配下)。`--state <path>` で変更可(`watch <ASN>` ではファイルそのもの、`--config` 使用時はディレクトリ)
   - **`--demo` 実行時は `~/.local/state/ashealth/demo/asXXXX.json`**(`demo/` サブディレクトリ)に書きます。
     デモを何度も試した結果が実運用の監視状態・スコア履歴に混ざらないようにするためです。`--state` で
     明示的にパスを指定した場合はそちらが優先されます
