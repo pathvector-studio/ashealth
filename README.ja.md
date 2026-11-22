@@ -498,11 +498,10 @@ ashealth report --config <path> --webhook <URL>           # 完了後にDiscord 
 ```
 
 状態ファイルは `watch` と共有(`asXXXX.json`。既定の置き場所は、`$XDG_STATE_HOME` が設定されていれば
-`$XDG_STATE_HOME/ashealth/`、未設定なら `~/.local/state/ashealth/`。`--state <dir>` でディレクトリを変更可)し、履歴(直近90件のスコア推移)と
-`last_report_at`(前回report実行時刻)を書き込みます。**`report` を実行するたびに
-差分の基準点が更新される**ため、`watch` の変化検知とは独立して運用できます。
-`report` は実行のたびに履歴へ追記して `last_report_at` を更新します(これが差分の基準点を動かします)。
-`watch` も履歴には追記しますが `last_report_at` は変えないため、差分(前回比)の基準は `watch` とは独立して進みます。
+`$XDG_STATE_HOME/ashealth/`、未設定なら `~/.local/state/ashealth/`。`--state <dir>` でディレクトリを変更可)し、履歴(直近90件のスコア推移。古いものから破棄)と
+`last_report_at`(前回report実行時刻)を書き込みます。`report` は実行のたびに履歴へ追記して
+`last_report_at` を更新し、これが差分の基準点を動かします。
+`watch` も履歴には追記しますが `last_report_at` は変えないため、差分の基準点は `watch` とは独立して進みます。
 
 出力例(バンドルされたフィクスチャ AS64500・AS64501 で `--demo` を2回連続実行した場合。
 1回目は「初回」、2回目は履歴が1件だけなのでトレンドは単一値・差分は `±0`):
