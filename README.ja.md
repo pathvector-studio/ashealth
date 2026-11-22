@@ -392,8 +392,8 @@ examples/config.example.toml  複数AS管理設定ファイルのサンプル
 - 変化があったとき(および初回)に `--webhook` の URL へ JSON を POST(`--config` 使用時は `--webhook` は使われず、AS個別の `webhook` → `[defaults]` の `webhook` の順で使われます。どちらにも `webhook` が無いASには通知は送られません)
   - ペイロード: `{"asn":..., "score":..., "grade":..., "new":[...], "resolved":[...], "summary":"..."}`
   - あわせて日本語1行サマリの `content` フィールドを含むため、**Discord の Webhook URL をそのまま指定するだけで通知が届きます**
-- `--once` で1サイクルだけ実行して終了(cron / systemd timer 向け)。指定しなければ `--interval` 秒(既定 21600 = 6時間)ごとにループ(`--config` 使用時は設定ファイルの `[defaults]` テーブルの `interval` を使い、`--interval` は使われません。AS個別の `interval` は書けません(`[[as]]` で使えるのは `asn` / `name` / `webhook` のみ)。`[defaults]` で省略した場合は組み込み既定値の 21600 秒になり、CLI の値には戻りません)
-- `--limit` でRPKI検証するprefix数の上限を変更可(既定 50。`check` と同じ。`--config` 使用時は設定ファイルの `[defaults]` テーブルの `limit` を使います(AS個別の `limit` は書けません)。省略時は組み込み既定値の 50 で、CLI の `--limit` には戻りません。`[defaults]` に `limit = 0` を書いても設定の読み込み時には弾かれず、実行時(各ASのチェック実行時)に拒否されます。`watch --config` では全ASのサイクルが失敗として表示され、通知は送られません)
+- `--once` で1サイクルだけ実行して終了(cron / systemd timer 向け)。指定しなければ `--interval` 秒(既定 21600 = 6時間)ごとにループ(`--config` 使用時は設定ファイルの `[defaults]` テーブルの `interval` を使い、`--interval` は使われません。AS個別の `interval` は使われません(`[[as]]` に書いてもエラーにならず無視されます。`[[as]]` で読まれるのは `asn` / `name` / `webhook` のみ)。`[defaults]` で省略した場合は組み込み既定値の 21600 秒になり、CLI の値には戻りません)
+- `--limit` でRPKI検証するprefix数の上限を変更可(既定 50。`check` と同じ。`--config` 使用時は設定ファイルの `[defaults]` テーブルの `limit` を使います(AS個別の `limit` は使われません。書いても無視されます)。省略時は組み込み既定値の 50 で、CLI の `--limit` には戻りません。`[defaults]` に `limit = 0` を書いても設定の読み込み時には弾かれず、実行時(各ASのチェック実行時)に拒否されます。`watch --config` では全ASのサイクルが失敗として表示され、通知は送られません)
 
 ## 複数AS管理 (`--config`)
 
