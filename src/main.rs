@@ -41,7 +41,7 @@ enum Cmd {
         /// バンドルされたフィクスチャ (架空のAS64500) を使いオフラインでデモ実行する
         #[arg(long)]
         demo: bool,
-        /// RPKI検証を行う広報プレフィックスの最大数 (ライブAPIの負荷抑制。0は指定不可。--config 使用時はこの値を使わず、設定ファイルの [defaults] の limit、省略時は組み込み既定値 50 を使用)
+        /// RPKI検証を行う広報プレフィックスの最大数 (ライブAPIの負荷抑制。--config なしでは0は指定不可。--config 使用時はこの値を使わず (0も無視される)、設定ファイルの [defaults] の limit、省略時は組み込み既定値 50 を使用)
         #[arg(long, default_value_t = 50)]
         limit: usize,
         /// 設定ファイルのパス。指定時は設定内の全ASを順にチェックする (省略時: ~/.config/ashealth/config.toml)
@@ -86,10 +86,10 @@ enum Cmd {
     Watch {
         /// 対象のAS番号 (例: 64496)。--demo 時は省略可 (AS64500)。--config 使用時は指定不要
         asn: Option<String>,
-        /// チェック間隔 (秒)。既定 21600 = 6時間 (--config 使用時はこの値を使わず、設定ファイルの [defaults] の interval、省略時は組み込み既定値 21600 を使用)
+        /// チェック間隔 (秒)。既定 21600 = 6時間 (--config 使用時はこの値を使わず、設定ファイルの [defaults] の interval、省略時は同じく 21600 を使用)
         #[arg(long, default_value_t = 21600)]
         interval: u64,
-        /// 変化時にJSONをPOSTするWebhook URL (Discord Webhook互換のcontent付き)
+        /// 変化時にJSONをPOSTするWebhook URL (Discord Webhook互換のcontent付き。--config 使用時はこの値を使わず、AS個別 → [defaults] の webhook を使用)
         #[arg(long)]
         webhook: Option<String>,
         /// 状態ファイルのパス (既定: $XDG_STATE_HOME/ashealth/asXXXX.json、未設定なら ~/.local/state/ashealth/asXXXX.json。--demo で省略時はこの既定ディレクトリ配下の demo/asXXXX.json。--demo と併用しても指定パスはそのまま使われ demo/ は付かない)。--config 使用時は指定パスをディレクトリとして扱い、その配下に asXXXX.json を作る
@@ -101,7 +101,7 @@ enum Cmd {
         /// バンドルされたフィクスチャ (架空のAS64500) を使いオフラインで実行する
         #[arg(long)]
         demo: bool,
-        /// RPKI検証を行う広報プレフィックスの最大数 (0は指定不可。--config 使用時はこの値を使わず、設定ファイルの [defaults] の limit、省略時は組み込み既定値 50 を使用)
+        /// RPKI検証を行う広報プレフィックスの最大数 (--config なしでは0は指定不可。--config 使用時はこの値を使わず (0も無視される)、設定ファイルの [defaults] の limit、省略時は組み込み既定値 50 を使用)
         #[arg(long, default_value_t = 50)]
         limit: usize,
         /// 設定ファイルのパス。指定時は設定内の全ASを毎サイクル監視する (省略時: ~/.config/ashealth/config.toml)
