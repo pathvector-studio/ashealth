@@ -170,7 +170,7 @@ asn = 64501
 name = "staging AS"
 ```
 
-Precedence is **per-AS > defaults > built-in default**. `check --config` prints a worst-first summary table; `watch --config` monitors every AS each cycle; `serve --config` turns the top page into a multi-AS dashboard (auto-refreshing, plus a `GET /api/summary` endpoint). Multi-AS runs are serialized with a 1-second pause between ASes to be gentle on the upstream APIs.
+Precedence: `interval` / `limit` are **`[defaults]` > built-in default** (they cannot be set per AS); `webhook` is **per-AS > `[defaults]`**. `check --config` prints a worst-first summary table; `watch --config` monitors every AS each cycle; `serve --config` turns the top page into a multi-AS dashboard (auto-refreshing, plus a `GET /api/summary` endpoint). `check --config` and `watch --config --once` exit with code 0 even if some or all ASes fail (failures are only printed to stderr), so under cron check the stderr output (log) rather than the exit code; a failed cycle sends no webhook either. Multi-AS runs are serialized with a 1-second pause between ASes to be gentle on the upstream APIs.
 
 ## Offline demo (`--demo`)
 
