@@ -41,7 +41,7 @@ enum Cmd {
         /// バンドルされたフィクスチャ (架空のAS64500) を使いオフラインでデモ実行する
         #[arg(long)]
         demo: bool,
-        /// RPKI検証を行う広報プレフィックスの最大数 (ライブAPIの負荷抑制)
+        /// RPKI検証を行う広報プレフィックスの最大数 (ライブAPIの負荷抑制。0は指定不可)
         #[arg(long, default_value_t = 50)]
         limit: usize,
         /// 設定ファイルのパス。指定時は設定内の全ASを順にチェックする (省略時: ~/.config/ashealth/config.toml)
@@ -58,7 +58,7 @@ enum Cmd {
         /// 出力フォーマット
         #[arg(long, value_enum, default_value_t = FixFormat::Text)]
         format: FixFormat,
-        /// RPKI検証を行う広報プレフィックスの最大数 (ライブAPIの負荷抑制)
+        /// RPKI検証を行う広報プレフィックスの最大数 (ライブAPIの負荷抑制。0は指定不可)
         #[arg(long, default_value_t = 50)]
         limit: usize,
     },
@@ -102,7 +102,7 @@ enum Cmd {
         /// バンドルされたフィクスチャ (架空のAS64500) を使いオフラインで実行する
         #[arg(long)]
         demo: bool,
-        /// RPKI検証を行う広報プレフィックスの最大数
+        /// RPKI検証を行う広報プレフィックスの最大数 (0は指定不可)
         #[arg(long, default_value_t = 50)]
         limit: usize,
         /// 設定ファイルのパス。指定時は設定内の全ASを毎サイクル監視する (省略時: ~/.config/ashealth/config.toml)
