@@ -392,7 +392,7 @@ examples/config.example.toml  複数AS管理設定ファイルのサンプル
 - 変化があったとき(および初回)に `--webhook` の URL へ JSON を POST(`--config` 使用時は `--webhook` は使われず、AS個別の `webhook` → `[defaults]` の `webhook` の順で使われます。どちらにも `webhook` が無いASには通知は送られません)
   - ペイロード: `{"asn":..., "score":..., "grade":..., "new":[...], "resolved":[...], "summary":"..."}`
   - あわせて日本語1行サマリの `content` フィールドを含むため、**Discord の Webhook URL をそのまま指定するだけで通知が届きます**
-- `--once` で1サイクルだけ実行して終了(cron / systemd timer 向け)。指定しなければ `--interval` 秒(既定 21600 = 6時間)ごとにループ。`--config` 使用時は設定ファイルの `[defaults]` テーブルの `interval` を使い、`--interval` は使われません。`[defaults]` で省略した場合は組み込み既定値の 21600 秒になり、CLI の値には戻りません。AS個別の `interval` はありません: `[[as]]` に書いてもエラーにならず無視されます(`[[as]]` で読まれるのは `asn` / `name` / `webhook` のみ)
+- `--once` で1サイクルだけ実行して終了(cron / systemd timer 向け)。指定しなければ `--interval` 秒(既定 21600 = 6時間)ごとにループ。`--config` 使用時は設定ファイルの `[defaults]` テーブルの `interval` を使い、`--interval` は使われません。`[defaults]` で省略した場合は組み込み既定値の 21600 秒になり、CLI の値には戻りません。AS個別の `interval` はありません: `[[as]]` に書いてもエラーにならず無視されます(読まれるキーは「複数AS管理」節を参照)
 - `--limit` でRPKI検証するprefix数の上限を変更可(既定 50。`check` と同じ)。`--config` 使用時は設定ファイルの `[defaults]` テーブルの `limit` を使います。AS個別の `limit` はありません: 書いても無視されます。省略時は組み込み既定値の 50 で、CLI の `--limit` には戻りません。`[defaults]` に `limit = 0` を書いても設定の読み込み時には弾かれず、実行時(各ASのチェック実行時)に拒否されます。`watch --config` では全ASのサイクルが失敗として表示され、通知は送られません
 
 ## 複数AS管理 (`--config`)
@@ -421,7 +421,7 @@ name = "検証AS"
 優先順位は、`interval` / `limit` が **`[defaults]` > 組み込み既定値**、`webhook` が **AS個別設定 > `[defaults]`**(AS個別に上書きできる設定値は `webhook` だけです。`[[as]]` で読まれるのは `asn` / `name` / `webhook` のみです)。`asn` は必須・重複不可で、
 不正な設定(TOML の構文エラー、`asn` の重複、`[[as]]` が1件も無い場合など)は、日本語のエラーメッセージで理由を示して起動時に非0の終了コードで弾かれます(ただし `limit = 0` は読み込み時には弾かれず、実行時のチェックで拒否されます)。
 
-`check --config` と `watch --config --once` は、個々のAS(または全AS)のチェックが失敗しても終了コード 0 で終わります(失敗はエラーメッセージとして標準エラー出力に出るだけです)。cron で使う場合は、終了コードではなく標準エラー出力(ログ)を確認してください。`watch --config` のサイクル行(`N件のASをチェック — 変化 M件`)と `check --config` の末尾行(`合計 N AS を診断`)の N は成功したASだけの件数なので、設定したAS数より少なければ一部が失敗しています。失敗したサイクルでは webhook も送られません。
+`check --config` と `watch --config --once` は、個々のAS(または全AS)のチェックが失敗しても終了コード 0 で終わります(失敗はエラーメッセージとして標準エラー出力に出るだけです)。cron で使う場合は、終了コードではなく標準エラー出力(ログ)を確認してください。`watch --config` のサイクル行(`N件のASをチェック — 変化 M件`)と `check --config` の末尾行(`合計 N AS を診断`)の N は成功したASだけの件数なので、設定したAS数より少なければ一部が失敗しています。失敗したサイクルでは webhook も送られません。`check --config --json` では末尾行が出ない代わりに、標準出力が各ASのレポートの JSON 配列(各要素に `label` キーが付きます)になります。その配列の長さが成功したASの件数なので、設定したAS数と比べてください。
 
 ### `--config` と `--demo` の組み合わせ
 
