@@ -621,4 +621,75 @@ mod tests {
         let b = default_state_path_for(64501, false);
         assert_ne!(a, b);
     }
+
+    /// 状態の保存に失敗したサイクルでも webhook は送信済み (README に記載の挙動)。
+    /// 手順4 (webhook送信) が手順5 (状態保存) より先に走るため、サイクルは Err でも通知は届く。
+    #[tokio::test]
+    async fn cycle_failing_at_state_save_has_already_sent_webhook() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        // 1リクエストだけ受けて 200 を返す手製サーバ
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/hook", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut sock, _) = listener.accept().await.unwrap();
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 4096];
+            loop {
+                let n = sock.read(&mut chunk).await.unwrap();
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+                let text = String::from_utf8_lossy(&buf).to_string();
+                if let Some(pos) = text.find("\r\n\r\n") {
+                    let len = text[..pos]
+                        .lines()
+                        .find_map(|l| {
+                            l.to_ascii_lowercase()
+                                .strip_prefix("content-length:")
+                                .and_then(|v| v.trim().parse::<usize>().ok())
+                        })
+                        .unwrap_or(0);
+                    if buf.len() >= pos + 4 + len {
+                        break;
+                    }
+                }
+            }
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .await
+                .unwrap();
+            sock.shutdown().await.ok();
+            String::from_utf8_lossy(&buf).to_string()
+        });
+
+        // 通常ファイルの下を指す path → create_dir_all が必ず失敗する
+        let dir = std::env::temp_dir().join(format!(
+            "ashealth-watch-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("file");
+        std::fs::write(&file, b"not a dir").unwrap();
+        let bad_path = file.join("as64500.json");
+
+        let result = run_cycle(64500, true, 50, &bad_path, Some(&url)).await;
+        let received = tokio::time::timeout(Duration::from_secs(5), server).await;
+        std::fs::remove_dir_all(&dir).ok();
+
+        let err = result.err().expect("状態保存に失敗するのでサイクルは Err");
+        assert!(
+            format!("{err:#}").contains("状態ディレクトリの作成に失敗"),
+            "unexpected error: {err:#}"
+        );
+        let req = received
+            .expect("webhook が受信されること")
+            .expect("サーバタスクが正常終了すること");
+        assert!(req.starts_with("POST /hook"), "unexpected request: {req}");
+        assert!(req.contains("\"asn\":64500"), "unexpected request: {req}");
+    }
 }
