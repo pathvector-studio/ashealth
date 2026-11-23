@@ -640,6 +640,10 @@ mod tests {
 
     /// P0-2: `--limit 0` は「RPKI検証を全件スキップ」を意味してしまい、FAIL所見を
     /// すべて握りつぶしてスコアを不当に押し上げる (28/E → 73/C 相当の実害) ため拒否する。
+    ///
+    /// 同じエラーが出る経路は2つ: CLI の `--limit 0` (main.rs → `collect`) と、
+    /// 設定ファイル `[defaults] limit = 0` (multi.rs が `config.limit` を渡す)。
+    /// `[[as]]` ごとの limit は読まれないため、エラー文は `[[as]]` に誘導してはならない。
     #[tokio::test]
     async fn collect_rejects_limit_zero() {
         let src: Arc<dyn DataSource> = Arc::new(FixtureSource::new());
@@ -647,6 +651,8 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("--limit"), "got: {err}");
         assert!(msg.contains("[defaults]"), "got: {err}");
+        assert!(msg.contains("0 は指定できません"), "got: {err}");
+        assert!(!msg.contains("[[as]]"), "got: {err}");
     }
 
     #[tokio::test]
