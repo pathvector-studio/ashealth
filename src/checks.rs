@@ -107,7 +107,7 @@ pub struct HealthInput {
 pub async fn collect(source: Arc<dyn DataSource>, asn: u32, limit: usize) -> Result<HealthInput> {
     anyhow::ensure!(
         limit > 0,
-        "--limit 0 は指定できません — RPKI検証(ROA未作成・RPKI invalidの検出)が全件スキップされ、スコアが実態より高く出てしまいます。件数を絞りたい場合は --limit に1以上の値を指定してください"
+        "limit に 0 は指定できません(CLI の --limit、または設定ファイル [defaults] の limit) — RPKI検証(ROA未作成・RPKI invalidの検出)が全件スキップされ、スコアが実態より高く出てしまいます。件数を絞りたい場合は1以上の値を指定してください"
     );
     let overview = source.as_overview(asn).await?;
 
@@ -644,7 +644,9 @@ mod tests {
     async fn collect_rejects_limit_zero() {
         let src: Arc<dyn DataSource> = Arc::new(FixtureSource::new());
         let err = collect(src, 64500, 0).await.unwrap_err();
-        assert!(err.to_string().contains("--limit 0"), "got: {err}");
+        let msg = err.to_string();
+        assert!(msg.contains("--limit"), "got: {err}");
+        assert!(msg.contains("[defaults]"), "got: {err}");
     }
 
     #[tokio::test]
