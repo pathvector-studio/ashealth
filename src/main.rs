@@ -92,7 +92,7 @@ enum Cmd {
         /// 変化時にJSONをPOSTするWebhook URL (Discord Webhook互換のcontent付き。--config 使用時はこの値を使わず、AS個別 → [defaults] の webhook を使用)
         #[arg(long)]
         webhook: Option<String>,
-        /// 状態ファイルのパス (既定: $XDG_STATE_HOME/ashealth/asXXXX.json、未設定なら ~/.local/state/ashealth/asXXXX.json。--demo で省略時はこの既定ディレクトリ配下の demo/asXXXX.json。--demo と併用しても指定パスはそのまま使われ demo/ は付かない)。--config 使用時は指定パスをディレクトリとして扱い、その配下に asXXXX.json を作る
+        /// 状態ファイルのパス (既定: $XDG_STATE_HOME/ashealth/asXXXX.json、未設定なら ~/.local/state/ashealth/asXXXX.json。--demo で省略時はこの既定ディレクトリ配下の demo/asXXXX.json。--demo と併用しても指定パスはそのまま使われ demo/ は付かない)。--config 使用時は指定パスをディレクトリとして扱い、その配下に asXXXX.json を作る。--config 使用時に省略すると AS ごとに上記の既定パス (--demo なら demo/ 配下) を使う
         #[arg(long)]
         state: Option<std::path::PathBuf>,
         /// 1回だけ比較・通知して終了する (cron / systemd timer 向け)
