@@ -620,6 +620,61 @@ mod tests {
         assert_eq!(payload["blocks"][0]["asn"], 64500);
     }
 
+    /// `[defaults] limit = 0` は設定の読み込み時には弾かれず、`report --config` では
+    /// 各ASの `checks::collect` で拒否される (README「`limit = 0` は実行時に拒否される」の固定)。
+    /// 失敗したASは stderr に出るだけでスキップされ、全滅しても `run_all` は `Ok` を返す
+    /// (= main は終了コード0) 。集計は0件・状態ファイルは作られない。
+    /// フィクスチャ (`--demo` 相当) のみ使い、ネットワークにも webhook にも触れない。
+    #[tokio::test]
+    async fn run_all_with_config_limit_zero_fails_every_as_but_returns_ok() {
+        let cfg = crate::config::parse(
+            r#"
+[defaults]
+limit = 0
+
+[[as]]
+asn = 64500
+name = "本番AS"
+"#,
+        )
+        .expect("limit = 0 は読み込み時には弾かれない");
+        assert_eq!(cfg.limit, 0);
+
+        let dir = std::env::temp_dir().join(format!(
+            "ashealth-report-limit0-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // run_one 単体: 拒否理由は limit 0 のエラーで、状態ファイルは書かれない
+        let path = dir.join("as64500.json");
+        let err = run_one(&cfg.entries[0], true, cfg.limit, &path)
+            .await
+            .expect_err("limit 0 は collect で拒否される");
+        assert!(
+            format!("{err:#}").contains("limit に 0 は指定できません"),
+            "{err:#}"
+        );
+
+        // run_all: AS単位の失敗は握りつぶされ Ok(0件) になる
+        let report = run_all(&cfg, true, Some(&dir)).await.expect("全滅でも Ok");
+        assert_eq!(report.as_count, 0);
+        assert_eq!(report.avg_score, 0);
+        assert_eq!(report.top_action, None);
+        assert!(report.blocks.is_empty());
+        let text = render_text(&report);
+        assert!(text.contains("対象AS数: 0件   平均スコア: 0点"), "{text}");
+        assert!(text.contains("最重要アクション: なし (全AS健全)"), "{text}");
+
+        // 状態ファイル・状態ディレクトリは作られない (history / last_report_at も進まない)
+        assert!(!path.exists());
+        assert!(!dir.exists());
+    }
+
     #[test]
     fn render_text_includes_header_and_blocks() {
         let report = FullReport {
