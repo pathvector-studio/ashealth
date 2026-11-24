@@ -641,8 +641,11 @@ mod tests {
     /// P0-2: `--limit 0` は「RPKI検証を全件スキップ」を意味してしまい、FAIL所見を
     /// すべて握りつぶしてスコアを不当に押し上げる (28/E → 73/C 相当の実害) ため拒否する。
     ///
-    /// 同じエラーが出る経路は2つ: CLI の `--limit 0` (main.rs → `collect`) と、
-    /// 設定ファイル `[defaults] limit = 0` (multi.rs が `config.limit` を渡す)。
+    /// 同じエラーが出る経路は2つ: CLI の `--limit 0` (`check` / `fix` は main.rs から直接
+    /// `collect`、`watch` は main.rs → watch.rs の `run_cycle` → `collect`) と、
+    /// 設定ファイル `[defaults] limit = 0` (`check --config` は `multi::check_all`、
+    /// `watch --config` は `multi::watch_cycle` が `config.limit` を渡す)。
+    /// `serve` は limit を受け取らず固定値 (server.rs の `WEB_RPKI_LIMIT`) を使うため対象外。
     /// `[[as]]` ごとの limit は読まれないため、エラー文は `[[as]]` に誘導してはならない。
     #[tokio::test]
     async fn collect_rejects_limit_zero() {
