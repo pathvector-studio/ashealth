@@ -92,6 +92,8 @@ An embedded single-page UI (plain JS, no build step): enter an ASN, get the repo
 
 `serve` has no `--limit`: RPKI validation is always capped at the first 50 prefixes (the same as `check`'s default), and the `[defaults]` `limit` in `--config` is not used by `serve` either. The `/api/check/{asn}` JSON carries the `coverage` object described above, so a large AS is still reported as sampled.
 
+The web UI does not show the `coverage` object or mark the grade as an estimate. When the cap applies, it only lists a note (`※ 広報プレフィックスがN件あるため、RPKI検証は先頭50件に制限しました (--limit で変更可)`) at the bottom of the report (the meta line still shows `RPKI検証 N件`, the number of prefixes checked); the `--limit` hint in that note does not apply to `serve`. The `serve --config` dashboard and `/api/summary` do not show coverage either. To tell whether a score is sampled, check `coverage.complete` in the `/api/check/{asn}` JSON.
+
 ### `watch` — change detection
 
 ```bash
