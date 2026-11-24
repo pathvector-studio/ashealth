@@ -328,6 +328,50 @@ name = "カスタムAS"
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// `[[as]]` に書いた `interval` / `limit` は読み込み時にエラーにならず黙って無視され、
+    /// 結果は `[defaults]` (省略時は組み込み既定値) の値になる。README 英日に記載の仕様を固定。
+    /// エラーにするかは ashealth#19 の判断待ちのため、挙動を変えたらこのテストを見直す。
+    #[test]
+    fn per_as_interval_and_limit_are_silently_ignored() {
+        // [defaults] あり: [[as]] の interval=60 / limit=5 ではなく defaults の 3600 / 20
+        let with_defaults = r#"
+[defaults]
+interval = 3600
+limit = 20
+
+[[as]]
+asn = 64500
+name = "本番AS"
+webhook = "https://example.com/prod"
+interval = 60
+limit = 5
+"#;
+        let cfg = parse(with_defaults).expect("[[as]] の interval/limit はエラーにならない");
+        assert_eq!(cfg.interval, 3600);
+        assert_eq!(cfg.limit, 20);
+        assert_eq!(cfg.entries.len(), 1);
+        assert_eq!(cfg.entries[0].asn, 64500);
+        assert_eq!(cfg.entries[0].name, "本番AS");
+        assert_eq!(
+            cfg.entries[0].webhook.as_deref(),
+            Some("https://example.com/prod")
+        );
+
+        // [defaults] なし: 組み込み既定値 (DEFAULT_INTERVAL / DEFAULT_LIMIT)
+        let without_defaults = r#"
+[[as]]
+asn = 64501
+interval = 60
+limit = 5
+"#;
+        let cfg = parse(without_defaults).expect("[[as]] の interval/limit はエラーにならない");
+        assert_eq!(cfg.interval, DEFAULT_INTERVAL);
+        assert_eq!(cfg.limit, DEFAULT_LIMIT);
+        assert_eq!(cfg.entries[0].asn, 64501);
+        assert_eq!(cfg.entries[0].name, "AS64501");
+        assert_eq!(cfg.entries[0].webhook, None);
+    }
+
     /// 読めない設定ファイルのエラーは、実在するサンプル (examples/config.example.toml) を案内し、
     /// 存在しないサブコマンド (ashealth config example) を案内しない。
     #[test]
