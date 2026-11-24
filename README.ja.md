@@ -58,6 +58,7 @@ ashealth serve --port 8080 --demo    # 完全オフラインデモモード。�
 #   --port       : 待ち受けポート (既定8080)
 #   --rate-limit : /api/check のIPあたり許可回数/分 (既定10、超過は429。0で無制限)
 #   --cache-ttl  : 診断結果キャッシュの保持秒数 (既定600、0で無効)
+#   (serve に --limit はありません。RPKI検証は常に先頭50prefixまで。詳細は下の「複数ASダッシュボード」章)
 #   --port が使用中の場合は「ポートNは使用中です。別の --port を指定してください」と案内して終了
 
 # 複数ASダッシュボード (--config 指定時。詳細は下の「複数ASダッシュボード」章)
@@ -418,7 +419,7 @@ asn = 64501
 name = "検証AS"
 ```
 
-優先順位は、`interval` / `limit` が **`[defaults]` > 組み込み既定値**、`webhook` が **AS個別設定 > `[defaults]`**(AS個別に上書きできる設定値は `webhook` だけです。`[[as]]` で読まれるのは `asn` / `name` / `webhook` のみです)。`asn` は必須・重複不可で、
+優先順位は、`interval` / `limit` が **`[defaults]` > 組み込み既定値**、`webhook` が **AS個別設定 > `[defaults]`**(`serve --config` はどちらも使わず、RPKI検証は常に最大50プレフィックスです。AS個別に上書きできる設定値は `webhook` だけです。`[[as]]` で読まれるのは `asn` / `name` / `webhook` のみです)。`asn` は必須・重複不可で、
 不正な設定(TOML の構文エラー、`asn` の重複、`[[as]]` が1件も無い場合など)は、日本語のエラーメッセージで理由を示して起動時に非0の終了コードで弾かれます(ただし `limit = 0` は読み込み時には弾かれず、実行時のチェックで拒否されます)。
 
 `check --config` と `watch --config --once` は、個々のAS(または全AS)のチェックが失敗しても終了コード 0 で終わります(失敗はエラーメッセージとして標準エラー出力に出るだけです)。cron で使う場合は、終了コードではなく標準エラー出力(ログ)を確認してください。`watch --config` のサイクル行(`N件のASをチェック — 変化 M件`)と `check --config` の末尾行(`合計 N AS を診断`)の N は成功したASだけの件数なので、設定したAS数より少なければ一部が失敗しています。データの収集や既存の状態ファイルの解析に失敗したサイクルでは webhook は送られません(状態ファイルの保存だけが失敗した場合は、サイクル失敗と表示されますが webhook は送信済みです)。`check --config --json` では末尾行が出ない代わりに、標準出力が各ASのレポートの JSON 配列(各要素に `label` キーが付きます)になります。その配列の長さが成功したASの件数なので、設定したAS数と比べてください。全ASが失敗した場合は `[]` を出力し、終了コードは 0 のままです。
@@ -589,6 +590,7 @@ ashealth serve --port 8080 --config ~/.config/ashealth/config.toml
 - 新エンドポイント `GET /api/summary`: `[{asn,label,score,grade,fail,warn,checked_at,cached}]`
   を返します。未チェックのASNは `score` 以下のフィールドが省略され `cached: false` になります。
   設定内ASNが0件でも(構造上あり得ませんが)配列だけを返し常に200
+- `serve` には `--limit` が無く、RPKI検証は常に最初の50プレフィックスまでです(`check` の既定値と同じ)。`--config` の `[defaults]` の `limit` も `serve` では使われません。`/api/check/{asn}` のJSONには前述の `coverage` が含まれます
 - `--config` を渡さない既存の挙動(単体AS診断フォーム、`/api/summary` は404)は完全に維持
 
 `/api/summary` の応答例(AS64500だけ `/api/check/64500` 済み、AS64501は未チェック):
