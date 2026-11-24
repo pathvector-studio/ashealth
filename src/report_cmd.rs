@@ -699,4 +699,154 @@ name = "本番AS"
         assert!(text.contains("↓-5"));
         assert!(text.contains("28 → 35 → 45 → 79"));
     }
+
+    /// pid＋時刻入りの一時ディレクトリ名 (作成はしない)。
+    fn unique_temp_dir(prefix: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "{prefix}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ))
+    }
+
+    /// 127.0.0.1 の空きポートで1リクエストだけ受けて 200 を返す手製サーバ
+    /// (`watch.rs` の `cycle_failing_at_state_save_has_already_sent_webhook` と同じ方式)。
+    /// 戻り値は (URL, 受信した生リクエスト全文を返すタスク)。
+    async fn one_shot_server() -> (String, tokio::task::JoinHandle<String>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/hook", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut sock, _) = listener.accept().await.unwrap();
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 4096];
+            loop {
+                let n = sock.read(&mut chunk).await.unwrap();
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+                let text = String::from_utf8_lossy(&buf).to_string();
+                if let Some(pos) = text.find("\r\n\r\n") {
+                    let len = text[..pos]
+                        .lines()
+                        .find_map(|l| {
+                            l.to_ascii_lowercase()
+                                .strip_prefix("content-length:")
+                                .and_then(|v| v.trim().parse::<usize>().ok())
+                        })
+                        .unwrap_or(0);
+                    if buf.len() >= pos + 4 + len {
+                        break;
+                    }
+                }
+            }
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .await
+                .unwrap();
+            sock.shutdown().await.ok();
+            String::from_utf8_lossy(&buf).to_string()
+        });
+        (url, server)
+    }
+
+    /// 全ASが失敗して `as_count == 0` でも、`--webhook` 指定があれば空サマリは POST される
+    /// (README「If `--webhook` is given, the empty digest is still POSTed」の固定)。
+    /// main.rs の Report 分岐 (`run_all` → `--webhook` があれば `post_webhook`) と同じ順に合成する。
+    /// `[defaults] limit = 0` で `run_all` は全滅 (Ok・0件・状態ファイルなし) になるが、
+    /// それでも本文に `"as_count":0` / `"blocks":[]` / `content` を持つ POST が届く。
+    /// フィクスチャ (demo) と 127.0.0.1 の手製サーバのみ使い、外部には送信しない。
+    #[tokio::test]
+    async fn report_posts_empty_digest_to_webhook_when_all_as_fail() {
+        let dir = unique_temp_dir("ashealth-report-empty-digest");
+        std::fs::create_dir_all(&dir).unwrap();
+        let cfg_path = dir.join("ashealth.toml");
+        std::fs::write(
+            &cfg_path,
+            r#"
+[defaults]
+limit = 0
+
+[[as]]
+asn = 64500
+name = "本番AS"
+"#,
+        )
+        .unwrap();
+        let state_dir = dir.join("state");
+
+        let (url, server) = one_shot_server().await;
+
+        let cfg = crate::config::load_for_demo(&cfg_path, true).expect("設定は読み込める");
+        let report = run_all(&cfg, true, Some(&state_dir))
+            .await
+            .expect("全滅でも Ok");
+        // main.rs と同じ: --webhook があれば run_all の結果 (空でも) をそのまま送る
+        let post = post_webhook(&url, &report).await;
+        let received = tokio::time::timeout(Duration::from_secs(5), server).await;
+        let state_dir_exists = state_dir.exists();
+        std::fs::remove_dir_all(&dir).ok();
+
+        assert_eq!(report.as_count, 0);
+        assert!(report.blocks.is_empty());
+        post.expect("空サマリの POST は成功する");
+        let req = received
+            .expect("webhook が受信されること")
+            .expect("サーバタスクが正常終了すること");
+        assert!(req.starts_with("POST /hook"), "unexpected request: {req}");
+        assert!(req.contains("\"as_count\":0"), "unexpected request: {req}");
+        assert!(req.contains("\"blocks\":[]"), "unexpected request: {req}");
+        assert!(req.contains("\"content\":"), "unexpected request: {req}");
+        // 状態ファイル (asXXXX.json) も状態ディレクトリも作られない
+        assert!(!state_dir_exists);
+    }
+
+    /// 設定ファイルの `webhook` (`[[as]]` 個別・`[defaults]` の両方) は `report` では使われない
+    /// (README「`report` ignores the per-AS and `[defaults]` `webhook` keys」の固定)。
+    /// 両方に 127.0.0.1 のリスナーの URL を書いて `run_all` を成功させても、リスナーには
+    /// 1本も接続が来ない (webhook を送るのは main の `--webhook` 引数だけ)。
+    /// 接続はバックログに積まれるので、`run_all` 完了後に accept を短時間待ってタイムアウトすれば
+    /// 「来ていない」と言える。フィクスチャ (demo) のみ使い、外部には送信しない。
+    #[tokio::test]
+    async fn run_all_ignores_config_webhook_keys() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/hook", listener.local_addr().unwrap());
+
+        let dir = unique_temp_dir("ashealth-report-cfg-webhook");
+        std::fs::create_dir_all(&dir).unwrap();
+        let cfg_path = dir.join("ashealth.toml");
+        std::fs::write(
+            &cfg_path,
+            format!(
+                r#"
+[defaults]
+webhook = "{url}"
+
+[[as]]
+asn = 64500
+name = "本番AS"
+webhook = "{url}"
+"#
+            ),
+        )
+        .unwrap();
+        let state_dir = dir.join("state");
+
+        let cfg = crate::config::load_for_demo(&cfg_path, true).expect("設定は読み込める");
+        assert_eq!(cfg.entries[0].webhook.as_deref(), Some(url.as_str()));
+        let result = run_all(&cfg, true, Some(&state_dir)).await;
+        let accepted = tokio::time::timeout(Duration::from_millis(500), listener.accept()).await;
+        std::fs::remove_dir_all(&dir).ok();
+
+        let report = result.expect("run_all は成功する");
+        assert!(report.as_count >= 1, "demo では成功するはず");
+        assert!(
+            accepted.is_err(),
+            "設定ファイルの webhook に接続が来てはいけない"
+        );
+    }
 }
