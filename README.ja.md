@@ -493,7 +493,7 @@ cron 例(6時間ごとに複数ASをまとめて監視):
 を1AS1ブロックで出力し、先頭に **対象AS数・平均スコア・全AS中もっとも深刻な所見(最重要アクション)**
 をまとめたヘッダを付けます。`--config` が必須です(単体AS向けの入力はありません)。
 
-`limit` は `watch --config` と同じく設定ファイルの `[defaults]` の `limit`(既定 50。AS個別の `limit` はありません)を使います。`[defaults]` に `limit = 0` を書いても設定の読み込み時には弾かれず、実行時(各ASのチェック実行時)に拒否されます。`report` では全ASについて標準エラー出力に `report: ASxxxx (名前) の集計に失敗: ...` が出てそのASは集計から外れ(状態ファイルは書かれないので、履歴も `last_report_at` も進みません)、標準出力には `対象AS数: 0件   平均スコア: 0点` のヘッダだけが出ます(`--webhook` を付けた場合は、送信に成功するとその後ろに `  → Webhook通知を送信しました` の行が続きます。`--json` でも JSON の後に同じ行が出るので、標準出力をそのまま JSON としてパースすると壊れます。失敗した場合は標準エラー出力に `report: Webhook通知に失敗しました: ...` が出ます)(`--json` では `as_count: 0` と `blocks: []`)。終了コードは 0 のままなので、cron で使う場合は標準エラー出力(ログ)を確認してください。`--webhook` を付けていれば、この0件のサマリも送信されます。なお `report` が使う webhook は `--webhook` だけで、設定ファイルの `webhook`(AS個別・`[defaults]`)は読みません。
+`limit` は `watch --config` と同じく設定ファイルの `[defaults]` の `limit`(既定 50。AS個別の `limit` はありません)を使います。`[defaults]` に `limit = 0` を書いても設定の読み込み時には弾かれず、実行時(各ASのチェック実行時)に拒否されます。`report` では全ASについて標準エラー出力に `report: ASxxxx (名前) の集計に失敗: ...` が出てそのASは集計から外れ(状態ファイルは書かれないので、履歴も `last_report_at` も進みません)、標準出力には `対象AS数: 0件   平均スコア: 0点` のヘッダだけが出ます(`--json` では `as_count: 0` と `blocks: []`)。終了コードは 0 のままなので、cron で使う場合は標準エラー出力(ログ)を確認してください。`--webhook` を付けていれば、この0件のサマリも送信されます。送信に成功すると標準出力のその後ろに `  → Webhook通知を送信しました` の行が続きます(`--json` でも JSON の後に同じ行が出るので、標準出力をそのまま JSON としてパースすると壊れます)。失敗した場合は標準エラー出力に `report: Webhook通知に失敗しました: ...` が出ます。なお `report` が使う webhook は `--webhook` だけで、設定ファイルの `webhook`(AS個別・`[defaults]`)は読みません。
 
 ```
 ashealth report --config ~/.config/ashealth/config.toml
@@ -593,7 +593,7 @@ ashealth serve --port 8080 --config ~/.config/ashealth/config.toml
   を返します。未チェックのASNは `score` 以下のフィールドが省略され `cached: false` になります。
   設定内ASNが0件でも(構造上あり得ませんが)配列だけを返し常に200
 - `serve` には `--limit` が無く、RPKI検証は常に最初の50プレフィックスまでです(`check` の既定値と同じ)。`--config` の `[defaults]` の `limit` も `serve` では使われません。`/api/check/{asn}` のJSONには前述の `coverage` が含まれるため、大きいASでもサンプル検査であることが分かります
-- Web UIはグレードに「推定」の注記を出さず、`coverage` も表示しません。上限に当たると結果の最下部に「※ 広報プレフィックスがN件あるため、RPKI検証は先頭50件に制限しました (--limit で変更可)」という注記だけが出ます(メタ行の `RPKI検証 N件` は検査した件数です)が、この「--limit で変更可」は `serve` には当てはまりません。`--config` のダッシュボードと `/api/summary` にも `coverage` はありません。推定(サンプル検査)かどうかは `/api/check/{asn}` のJSONの `coverage.complete` で確認してください
+- Web UIはグレードに「推定」の注記を出さず、`coverage` も表示しません。広報プレフィックスが50件を超えると、結果の最下部に「※ 広報プレフィックスがM件あるため、RPKI検証は先頭50件に制限しました (--limit で変更可)」という注記が出ます(`M` は広報プレフィックスの総数です)。上限に関する表示はこの注記だけで、RPKI APIの呼び出し失敗など別の注記が並ぶこともあります。メタ行の `RPKI検証 N件` の `N` は検査した件数で、注記中の「--limit で変更可」は `serve` には当てはまりません。`--config` のダッシュボードと `/api/summary` にも `coverage` はありません。推定(サンプル検査)かどうかは `/api/check/{asn}` のJSONの `coverage.complete` で確認してください
 - `--config` を渡さない既存の挙動(単体AS診断フォーム、`/api/summary` は404)は完全に維持
 
 `/api/summary` の応答例(AS64500だけ `/api/check/64500` 済み、AS64501は未チェック):
