@@ -67,6 +67,9 @@
   ul.deductions { list-style: none; padding: 0; margin: .4rem 0 0; font-size: .9rem; }
   ul.deductions li { padding: .1rem 0; }
   .points { font-family: ui-monospace, Menlo, monospace; font-weight: 700; color: var(--fail); }
+  .estimate { margin-top: 1rem; padding-top: .8rem; border-top: 1px solid var(--line); font-size: .9rem; }
+  .estimate .est-label { font-weight: 700; color: var(--warn); }
+  .estimate .est-warn { color: var(--warn); margin-top: .15rem; }
   .note { color: var(--muted); font-size: .82rem; margin-top: .75rem; }
   footer { color: var(--muted); font-size: .8rem; margin-top: 2rem; }
   .hidden { display: none; }
@@ -94,6 +97,10 @@
           <div class="meta" id="meta"></div>
           <div class="meta" id="comment"></div>
         </div>
+      </div>
+      <div class="estimate hidden" id="estimate">
+        <div class="est-label" id="est-label"></div>
+        <div class="est-warn" id="est-warn"></div>
       </div>
     </div>
     <div class="card" id="sections"></div>
@@ -154,6 +161,17 @@ function render(r) {
   if (r.irr_route_count != null) meta += " · IRR " + r.irr_route_count + "件";
   $("meta").textContent = meta;
   $("comment").textContent = r.grade_comment;
+
+  // RPKI検証が上限で打ち切られた場合は推定である旨を出す (CLI の表示と同旨)
+  const cov = r.coverage;
+  const partial = !!cov && cov.complete === false;
+  $("estimate").classList.toggle("hidden", !partial);
+  if (partial) {
+    $("est-label").innerHTML = "推定 — " + esc(cov.checked) + "/" + esc(cov.announced) +
+      " プレフィックス検査";
+    $("est-warn").innerHTML = "⚠ RPKI検証は広報" + esc(cov.announced) + "件中" + esc(cov.checked) +
+      "件のみ — 未検査分にFAIL所見が潜んでいる可能性があります";
+  }
 
   let html = "";
   for (const no of [1, 2, 3, 4, 5, 6, 7]) {

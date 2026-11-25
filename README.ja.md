@@ -593,7 +593,7 @@ ashealth serve --port 8080 --config ~/.config/ashealth/config.toml
   を返します。未チェックのASNは `score` 以下のフィールドが省略され `cached: false` になります。
   設定内ASNが0件でも(構造上あり得ませんが)配列だけを返し常に200
 - `serve` には `--limit` が無く、RPKI検証は常に最初の50プレフィックスまでです(`check` の既定値と同じ)。`--config` の `[defaults]` の `limit` も `serve` では使われません。`/api/check/{asn}` のJSONには前述の `coverage` が含まれるため、大きいASでもサンプル検査であることが分かります
-- Web UIはグレードに「推定」の注記を出さず、`coverage` も表示しません。広報プレフィックスが50件を超えると、結果の最下部に「※ 広報プレフィックスがM件あるため、RPKI検証は先頭50件に制限しました (--limit で変更可)」という注記が出ます(`M` は広報プレフィックスの総数です)。上限に関する表示はこの注記だけで、RPKI APIの呼び出し失敗など別の注記が並ぶこともあります。メタ行の `RPKI検証 N件` の `N` は検査した件数で、注記中の「--limit で変更可」は `serve` には当てはまりません。`--config` のダッシュボードと `/api/summary` にも `coverage` はありません。推定(サンプル検査)かどうかは `/api/check/{asn}` のJSONの `coverage.complete` で確認してください
+- 広報プレフィックスが50件を超えてRPKI検証が打ち切られた場合、Web UIはグレードの下に「推定 — M/N プレフィックス検査」と警告「⚠ RPKI検証は広報N件中M件のみ — 未検査分にFAIL所見が潜んでいる可能性があります」を表示します(`N` は広報プレフィックスの総数、`M` は検査した件数)。結果の最下部にも「※ 広報プレフィックスがN件あるため、RPKI検証は先頭50件に制限しました (Web UI では上限固定。全件検査は CLI の --limit で)」という注記が出ます。RPKI APIの呼び出し失敗など別の注記が並ぶこともあります。メタ行の `RPKI検証 M件` の `M` は検査した件数です。打ち切りが無いときはこれらの表示は出ません。`--config` のダッシュボードと `/api/summary` には `coverage` はありません。推定(サンプル検査)かどうかは `/api/check/{asn}` のJSONの `coverage.complete` でも確認できます
 - `--config` を渡さない既存の挙動(単体AS診断フォーム、`/api/summary` は404)は完全に維持
 
 `/api/summary` の応答例(AS64500だけ `/api/check/64500` 済み、AS64501は未チェック):
