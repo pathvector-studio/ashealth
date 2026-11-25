@@ -105,6 +105,31 @@ pub struct HealthInput {
 /// `0` は「RPKI検証を全件スキップ」を意味してしまい、ROA未作成・RPKI invalidの
 /// FAIL所見をすべて握りつぶしてスコアを不当に押し上げるため拒否する。
 pub async fn collect(source: Arc<dyn DataSource>, asn: u32, limit: usize) -> Result<HealthInput> {
+    collect_inner(source, asn, limit, CLI_LIMIT_HINT).await
+}
+
+/// `serve` (Web UI) 用の入口。`--limit` が無いため、上限注記の括弧書きだけを差し替える。
+/// それ以外は [`collect`] と同一。
+pub async fn collect_for_serve(
+    source: Arc<dyn DataSource>,
+    asn: u32,
+    limit: usize,
+) -> Result<HealthInput> {
+    collect_inner(source, asn, limit, SERVE_LIMIT_HINT).await
+}
+
+/// 上限注記の括弧書き (CLI: check / fix / watch / report)。
+const CLI_LIMIT_HINT: &str = "--limit で変更可";
+/// 上限注記の括弧書き (serve: 上限固定)。
+const SERVE_LIMIT_HINT: &str = "Web UI では上限固定。全件検査は CLI の --limit で";
+
+/// [`collect`] / [`collect_for_serve`] の本体。`hint` は上限注記の括弧内に入る文言。
+async fn collect_inner(
+    source: Arc<dyn DataSource>,
+    asn: u32,
+    limit: usize,
+    hint: &str,
+) -> Result<HealthInput> {
     anyhow::ensure!(
         limit > 0,
         "limit に 0 は指定できません(CLI の --limit、または設定ファイル [defaults] の limit) — RPKI検証(ROA未作成・RPKI invalidの検出)が全件スキップされ、スコアが実態より高く出てしまいます。件数を絞りたい場合は1以上の値を指定してください"
@@ -124,9 +149,10 @@ pub async fn collect(source: Arc<dyn DataSource>, asn: u32, limit: usize) -> Res
     let truncated = announced.len() > limit;
     if truncated {
         notes.push(format!(
-            "広報プレフィックスが{}件あるため、RPKI検証は先頭{}件に制限しました (--limit で変更可)",
+            "広報プレフィックスが{}件あるため、RPKI検証は先頭{}件に制限しました ({})",
             announced.len(),
-            limit
+            limit,
+            hint
         ));
     }
 
@@ -453,6 +479,39 @@ pub fn covers(sup: &str, sub: &str) -> bool {
     ipa & mask == ipb & mask
 }
 
+/// 上限超過の動作を確かめるためのフェイク DataSource (ネットワークに出ない)。
+/// `count` 件の広報プレフィックスを返し、RPKI は常に NotFound、IRR は空、PeeringDB は無し。
+#[cfg(test)]
+pub(crate) struct ManyPrefixSource {
+    pub count: usize,
+}
+
+#[cfg(test)]
+#[async_trait::async_trait]
+impl DataSource for ManyPrefixSource {
+    async fn as_overview(&self, asn: u32) -> Result<AsOverview> {
+        Ok(AsOverview {
+            asn,
+            holder: "TEST-NET".into(),
+            announced: true,
+        })
+    }
+    async fn announced_prefixes(&self, _asn: u32) -> Result<Vec<String>> {
+        Ok((0..self.count)
+            .map(|i| format!("10.{}.{}.0/24", i / 256, i % 256))
+            .collect())
+    }
+    async fn rpki_validation(&self, _asn: u32, _prefix: &str) -> Result<RpkiValidation> {
+        Ok(RpkiStatus::NotFound.into())
+    }
+    async fn irr_routes(&self, _asn: u32) -> Result<Vec<IrrRoute>> {
+        Ok(Vec::new())
+    }
+    async fn peeringdb_net(&self, _asn: u32) -> Result<Option<PeeringDbNet>> {
+        Ok(None)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -663,5 +722,60 @@ mod tests {
     async fn collect_accepts_limit_one() {
         let src: Arc<dyn DataSource> = Arc::new(FixtureSource::new());
         assert!(collect(src, 64500, 1).await.is_ok());
+    }
+
+    /// 現状固定: 上限超過時の注記は「(--limit で変更可)」を含む全文で出て、
+    /// `Report::build` 後の coverage は announced=総数 / checked=上限 / complete=false になる。
+    #[tokio::test]
+    async fn collect_over_limit_note_and_coverage_are_pinned() {
+        let src: Arc<dyn DataSource> = Arc::new(ManyPrefixSource { count: 60 });
+        let input = collect(src, 64500, 50).await.unwrap();
+        assert_eq!(
+            input.notes,
+            vec![
+                "広報プレフィックスが60件あるため、RPKI検証は先頭50件に制限しました (--limit で変更可)"
+                    .to_string()
+            ]
+        );
+        let findings = run_checks(&input);
+        let report = crate::report::Report::build(&input, findings);
+        assert_eq!(report.coverage.announced, 60);
+        assert_eq!(report.coverage.checked, 50);
+        assert!(!report.coverage.complete);
+    }
+
+    /// 上限ちょうど (50件/limit 50) なら注記なし・complete=true。
+    #[tokio::test]
+    async fn collect_at_limit_has_no_note_and_complete_coverage() {
+        let src: Arc<dyn DataSource> = Arc::new(ManyPrefixSource { count: 50 });
+        let input = collect(src, 64500, 50).await.unwrap();
+        assert!(input.notes.is_empty());
+        let report = crate::report::Report::build(&input, run_checks(&input));
+        assert!(report.coverage.complete);
+    }
+
+    /// serve 用の入口は括弧書きだけを差し替え、coverage は CLI と同じになる。
+    #[tokio::test]
+    async fn collect_for_serve_over_limit_note_replaces_only_the_hint() {
+        let src: Arc<dyn DataSource> = Arc::new(ManyPrefixSource { count: 60 });
+        let input = collect_for_serve(src, 64500, 50).await.unwrap();
+        assert_eq!(
+            input.notes,
+            vec![
+                "広報プレフィックスが60件あるため、RPKI検証は先頭50件に制限しました (Web UI では上限固定。全件検査は CLI の --limit で)"
+                    .to_string()
+            ]
+        );
+        let report = crate::report::Report::build(&input, run_checks(&input));
+        assert_eq!(report.coverage.announced, 60);
+        assert_eq!(report.coverage.checked, 50);
+        assert!(!report.coverage.complete);
+    }
+
+    /// serve 用でも `limit = 0` の拒否は共通 (serve は固定値なので実際には到達しない)。
+    #[tokio::test]
+    async fn collect_for_serve_rejects_limit_zero() {
+        let src: Arc<dyn DataSource> = Arc::new(ManyPrefixSource { count: 1 });
+        assert!(collect_for_serve(src, 64500, 0).await.is_err());
     }
 }

@@ -475,7 +475,12 @@ async fn run_check(asn: u32, demo_server: bool) -> Result<Report> {
     } else {
         Arc::new(LiveSource::new()?)
     };
-    let input = checks::collect(source, asn, WEB_RPKI_LIMIT).await?;
+    check_with_source(source, asn).await
+}
+
+/// `run_check` のデータソース以降の部分 (テストからフェイク DataSource を渡せるよう分離)。
+async fn check_with_source(source: Arc<dyn DataSource>, asn: u32) -> Result<Report> {
+    let input = checks::collect_for_serve(source, asn, WEB_RPKI_LIMIT).await?;
     let findings = checks::run_checks(&input);
     Ok(Report::build(&input, findings))
 }
@@ -731,5 +736,23 @@ name = "検証AS"
         assert!(html.contains("AS64501"));
         assert!(html.contains("未チェック"));
         assert!(html.contains(r#"http-equiv="refresh" content="300""#));
+    }
+
+    /// serve 経路 (`WEB_RPKI_LIMIT` = 50) で上限を超えると、注記の括弧書きは
+    /// serve 用の文言になり (「--limit で変更可」は出ない)、coverage は complete=false になる。
+    #[tokio::test]
+    async fn serve_path_over_limit_note_and_coverage() {
+        let src: Arc<dyn DataSource> = Arc::new(crate::checks::ManyPrefixSource { count: 60 });
+        let report = check_with_source(src, 64500).await.unwrap();
+        assert_eq!(
+            report.notes,
+            vec![
+                "広報プレフィックスが60件あるため、RPKI検証は先頭50件に制限しました (Web UI では上限固定。全件検査は CLI の --limit で)"
+                    .to_string()
+            ]
+        );
+        assert_eq!(report.coverage.announced, 60);
+        assert_eq!(report.coverage.checked, WEB_RPKI_LIMIT);
+        assert!(!report.coverage.complete);
     }
 }
