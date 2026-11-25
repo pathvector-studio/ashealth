@@ -453,6 +453,39 @@ pub fn covers(sup: &str, sub: &str) -> bool {
     ipa & mask == ipb & mask
 }
 
+/// 上限超過の動作を確かめるためのフェイク DataSource (ネットワークに出ない)。
+/// `count` 件の広報プレフィックスを返し、RPKI は常に NotFound、IRR は空、PeeringDB は無し。
+#[cfg(test)]
+pub(crate) struct ManyPrefixSource {
+    pub count: usize,
+}
+
+#[cfg(test)]
+#[async_trait::async_trait]
+impl DataSource for ManyPrefixSource {
+    async fn as_overview(&self, asn: u32) -> Result<AsOverview> {
+        Ok(AsOverview {
+            asn,
+            holder: "TEST-NET".into(),
+            announced: true,
+        })
+    }
+    async fn announced_prefixes(&self, _asn: u32) -> Result<Vec<String>> {
+        Ok((0..self.count)
+            .map(|i| format!("10.{}.{}.0/24", i / 256, i % 256))
+            .collect())
+    }
+    async fn rpki_validation(&self, _asn: u32, _prefix: &str) -> Result<RpkiValidation> {
+        Ok(RpkiStatus::NotFound.into())
+    }
+    async fn irr_routes(&self, _asn: u32) -> Result<Vec<IrrRoute>> {
+        Ok(Vec::new())
+    }
+    async fn peeringdb_net(&self, _asn: u32) -> Result<Option<PeeringDbNet>> {
+        Ok(None)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -663,5 +696,35 @@ mod tests {
     async fn collect_accepts_limit_one() {
         let src: Arc<dyn DataSource> = Arc::new(FixtureSource::new());
         assert!(collect(src, 64500, 1).await.is_ok());
+    }
+
+    /// 現状固定: 上限超過時の注記は「(--limit で変更可)」を含む全文で出て、
+    /// `Report::build` 後の coverage は announced=総数 / checked=上限 / complete=false になる。
+    #[tokio::test]
+    async fn collect_over_limit_note_and_coverage_are_pinned() {
+        let src: Arc<dyn DataSource> = Arc::new(ManyPrefixSource { count: 60 });
+        let input = collect(src, 64500, 50).await.unwrap();
+        assert_eq!(
+            input.notes,
+            vec![
+                "広報プレフィックスが60件あるため、RPKI検証は先頭50件に制限しました (--limit で変更可)"
+                    .to_string()
+            ]
+        );
+        let findings = run_checks(&input);
+        let report = crate::report::Report::build(&input, findings);
+        assert_eq!(report.coverage.announced, 60);
+        assert_eq!(report.coverage.checked, 50);
+        assert!(!report.coverage.complete);
+    }
+
+    /// 上限ちょうど (50件/limit 50) なら注記なし・complete=true。
+    #[tokio::test]
+    async fn collect_at_limit_has_no_note_and_complete_coverage() {
+        let src: Arc<dyn DataSource> = Arc::new(ManyPrefixSource { count: 50 });
+        let input = collect(src, 64500, 50).await.unwrap();
+        assert!(input.notes.is_empty());
+        let report = crate::report::Report::build(&input, run_checks(&input));
+        assert!(report.coverage.complete);
     }
 }
