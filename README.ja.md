@@ -439,6 +439,8 @@ ashealth report --config --demo   # 同様に定期サマリレポートをデ�
 ashealth serve --config --demo    # 同様にダッシュボードをデモ表示
 ```
 
+設定ファイルが存在する場合、`watch --config --demo` は設定ファイルに書かれた webhook(AS個別・`[defaults]`)へ実際に POST します。`examples/config.example.toml` のプレースホルダ Discord URL も例外ではなく、フィクスチャなのはデータだけです。試すときは webhook の行を消した(またはコメントアウトした)設定ファイルを使ってください。`check --config` と `serve --config` は webhook を送らず、`report` は `--webhook` フラグだけに送ります。
+
 ### `check --config`
 
 設定内の全ASを順にチェックし(RIPEstat への配慮として並列化せず、AS間に1秒休止)、
