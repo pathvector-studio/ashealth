@@ -39,7 +39,7 @@ cargo build --release
 # ライブ診断 (RIPEstat / PeeringDB / whois.radb.net に問い合わせ)
 ashealth check <AS番号>              # 例: ashealth check AS64496
 ashealth check <AS番号> --json       # JSONで全文出力
-ashealth check <AS番号> --limit 100  # RPKI検証するprefix数の上限を変更 (既定50。0は指定不可。--config 併用時は無視され設定ファイルの値を使用)
+ashealth check <AS番号> --limit 100  # RPKI検証するprefix数の上限を変更 (既定50。0は指定不可。--config を使うとき(AS番号は付けない)は --limit は無視され、設定ファイルの [defaults] の limit を使用。--limit 0 も無視)
 
 # オフラインデモ (バンドルされた架空のAS64500フィクスチャを使用)
 ashealth check --demo
@@ -151,7 +151,8 @@ ashealth check AS64500    # → 警告を標準エラーに出しつつ実行 (�
   RPKI invalid)にも検査件数の分母を明記します。
 - **JSON出力**: `coverage: {announced, checked, complete}` オブジェクトを追加。`complete: false`
   なら自動化パイプライン側でもサンプリングされたことを機械的に検出できます。
-- **`--limit 0` は指定できません**。`0` は「RPKI検証を全件スキップ」を意味してしまい、ROA未作成・
+- **`--config` を使うとき(`check --config` / `watch --config`)は `--limit` は使われません**。上限は設定ファイルの `[defaults]` の `limit`(省略時は組み込み既定値の50)で決まり、コマンドラインで `--limit` を指定しても(`--limit 0` も)警告なしで無視されます。
+- **`--limit 0` は指定できません**(`--config` を使わない場合)。`0` は「RPKI検証を全件スキップ」を意味してしまい、ROA未作成・
   RPKI invalidのFAIL所見をすべて握りつぶしてスコアを不当に押し上げます(実例: 本来28点/グレードEの
   ASが `--limit 0` では73点/グレードC相当に見えてしまう)。件数を絞りたい場合は1以上の値を指定してください。
 
@@ -419,7 +420,7 @@ asn = 64501
 name = "検証AS"
 ```
 
-優先順位は、`interval` / `limit` が **`[defaults]` > 組み込み既定値**(`--config` 使用時は CLI の `--interval` / `--limit` は使われず、指定しても黙って無視されます。`check --config` でも同様で、`--limit 0` も無視されます)、`webhook` が **AS個別設定 > `[defaults]`**(`serve --config` はどちらも使わず、RPKI検証は常に最大50プレフィックスです。AS個別に上書きできる設定値は `webhook` だけです。`[[as]]` で読まれるのは `asn` / `name` / `webhook` のみです)。`asn` は必須・重複不可で、
+優先順位は、`interval` / `limit` が **`[defaults]` > 組み込み既定値**(`--config` 使用時は CLI の `--interval` / `--limit` は使われず、指定しても黙って無視されます。`check --config` でも同様で、`--limit 0` も無視されます)、`webhook` が **AS個別設定 > `[defaults]`**(`serve --config` はどちらも使わず、RPKI検証は常に最大50プレフィックスです。AS個別に上書きできる設定値は `webhook` だけです。`[[as]]` で読まれるのは `asn` / `name` / `webhook` のみです)。`check` / `watch` で AS番号と `--config` を同時に指定するとエラーになります(`Error: AS番号と --config は同時に指定できません (どちらか一方を使ってください)`、終了コード 1。`--demo` を付けても同じ)。一方 `--config` と `--demo` の併用は可能です。`asn` は必須・重複不可で、
 不正な設定(TOML の構文エラー、`asn` の重複、`[[as]]` が1件も無い場合など)は、日本語のエラーメッセージで理由を示して起動時に非0の終了コードで弾かれます(ただし `limit = 0` は読み込み時には弾かれず、実行時のチェックで拒否されます。`watch` / `report` の各節も参照)。
 
 `check --config`・`watch --config --once`・`report` は、個々のAS(または全AS)のチェックが失敗しても終了コード 0 で終わります(失敗はエラーメッセージとして標準エラー出力に出るだけです)。cron で使う場合は、終了コードではなく標準エラー出力(ログ)を確認してください。`watch --config` のサイクル行(`N件のASをチェック — 変化 M件`)と `check --config` の末尾行(`合計 N AS を診断`)の N は成功したASだけの件数なので、設定したAS数より少なければ一部が失敗しています。`watch` では、データの収集や既存の状態ファイルの解析に失敗したサイクルでは webhook は送られません(`report` は全ASが失敗しても `--webhook` を付けていれば0件のサマリを送ります)(状態ファイルの保存だけが失敗した場合は、サイクル失敗と表示されますが webhook は送信済みです)。`check --config --json` では末尾行が出ない代わりに、標準出力が各ASのレポートの JSON 配列(各要素に `label` キーが付きます)になります。その配列の長さが成功したASの件数なので、設定したAS数と比べてください。全ASが失敗した場合は `[]` を出力し、終了コードは 0 のままです。
