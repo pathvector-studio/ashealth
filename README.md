@@ -51,7 +51,7 @@ ashealth report          # periodic digest across your ASes (score trend + top f
 ```bash
 ashealth check AS64496                # live (RIPEstat / PeeringDB / whois.radb.net)
 ashealth check AS64496 --json         # full structured output
-ashealth check AS64496 --limit 100    # cap prefixes sent for RPKI validation (default 50; 0 is rejected; ignored with `check --config` (no AS number); details below)
+ashealth check AS64496 --limit 100    # cap prefixes sent for RPKI validation (default 50; 0 is rejected; ignored with check --config, which takes no AS number; details below)
 ```
 
 It queries the four sources, runs seven checks, and prints a report ending in a **score out of 100** and a letter grade (**A** 90+ / **B** 75+ / **C** 60+ / **D** 40+ / **E** below 40).
@@ -189,7 +189,7 @@ ashealth serve --demo      # fully offline: every ASN answers from the AS64500 f
 ashealth report --config --demo   # digest over both fixtures (AS64500 unhealthy, AS64501 healthy)
 ```
 
-`--config --demo` uses your real config if one exists, otherwise synthesizes an in-memory two-AS config (AS64500 + AS64501) so multi-AS commands demo with zero setup. On the CLI, `--demo` skips the ASN validation described below, since the fixtures live in the RFC 5398 documentation range (`serve --demo` follows its own rules, described below).
+`--config --demo` uses your real config if one exists, otherwise synthesizes an in-memory two-AS config (AS64500 + AS64501) so multi-AS commands demo with zero setup. If the config file exists, `watch --config --demo` really POSTs to the webhooks written in it (per-AS or `[defaults]`), the placeholder Discord URL in `examples/config.example.toml` included; only the data is fixtures. To try it, use a config file with the webhook lines removed (or commented out). `check --config` and `serve --config` never send a webhook, and `report` posts only to the `--webhook` flag. On the CLI, `--demo` skips the ASN validation described below, since the fixtures live in the RFC 5398 documentation range (`serve --demo` follows its own rules, described below).
 
 ## ASN validation
 
