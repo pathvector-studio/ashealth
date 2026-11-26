@@ -772,6 +772,131 @@ mod tests {
         assert!(!report.coverage.complete);
     }
 
+    /// 正規化の確認用フェイク DataSource (ネットワークに出ない)。
+    /// `announced_prefixes` は呼び出し側が渡した生のリストをそのまま返し、
+    /// `rpki_validation` に渡されたプレフィックスを記録する。
+    struct RawPrefixSource {
+        raw: Vec<String>,
+        queried: std::sync::Mutex<Vec<String>>,
+    }
+
+    impl RawPrefixSource {
+        fn new(raw: &[&str]) -> Arc<Self> {
+            Arc::new(Self {
+                raw: raw.iter().map(|s| s.to_string()).collect(),
+                queried: std::sync::Mutex::new(Vec::new()),
+            })
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl DataSource for RawPrefixSource {
+        async fn as_overview(&self, asn: u32) -> Result<AsOverview> {
+            Ok(AsOverview {
+                asn,
+                holder: "TEST-NET".into(),
+                announced: true,
+            })
+        }
+        async fn announced_prefixes(&self, _asn: u32) -> Result<Vec<String>> {
+            Ok(self.raw.clone())
+        }
+        async fn rpki_validation(&self, _asn: u32, prefix: &str) -> Result<RpkiValidation> {
+            self.queried.lock().unwrap().push(prefix.to_string());
+            Ok(RpkiStatus::NotFound.into())
+        }
+        async fn irr_routes(&self, _asn: u32) -> Result<Vec<IrrRoute>> {
+            Ok(Vec::new())
+        }
+        async fn peeringdb_net(&self, _asn: u32) -> Result<Option<PeeringDbNet>> {
+            Ok(None)
+        }
+    }
+
+    /// 重複・大文字 (IPv6)・前後空白・順序入れ替わりを含む生の広報リスト (8件 → 重複除去後 4件)。
+    const RAW_PREFIXES: [&str; 8] = [
+        " 203.0.113.0/24",
+        "2001:DB8::/32",
+        "192.0.2.0/24 ",
+        "2001:db8::/32",
+        "198.51.100.0/24",
+        " 192.0.2.0/24 ",
+        "192.0.2.0/24",
+        "\t198.51.100.0/24\n",
+    ];
+
+    /// 文字列としての昇順 (数値順ではない): "2001:" は "203." より前に来る。
+    const NORMALIZED_PREFIXES: [&str; 4] = [
+        "192.0.2.0/24",
+        "198.51.100.0/24",
+        "2001:db8::/32",
+        "203.0.113.0/24",
+    ];
+
+    /// `collect` は広報プレフィックスをトリム・小文字化・ソート・重複除去し、
+    /// `input.announced` と RPKI 検証対象 (`input.rpki` のキーと実際の問い合わせ) もその結果になる。
+    #[tokio::test]
+    async fn collect_normalizes_announced_prefixes_and_rpki_targets() {
+        let src = RawPrefixSource::new(&RAW_PREFIXES);
+        let input = collect(src.clone(), 64500, 100).await.unwrap();
+        let expected: Vec<String> = NORMALIZED_PREFIXES.iter().map(|s| s.to_string()).collect();
+        assert_eq!(input.announced, expected);
+        assert_eq!(input.rpki.keys().cloned().collect::<Vec<_>>(), expected);
+        let mut queried = src.queried.lock().unwrap().clone();
+        queried.sort();
+        assert_eq!(queried, expected);
+        assert!(input.notes.is_empty(), "got: {:?}", input.notes);
+    }
+
+    /// Coverage は重複除去後の件数 (生の 8 件ではなく 4 件) で、limit が十分大きければ complete。
+    #[tokio::test]
+    async fn collect_coverage_counts_deduplicated_prefixes() {
+        let src = RawPrefixSource::new(&RAW_PREFIXES);
+        let input = collect(src, 64500, 100).await.unwrap();
+        let report = crate::report::Report::build(&input, run_checks(&input));
+        assert_eq!(report.coverage.announced, 4);
+        assert_eq!(report.coverage.checked, 4);
+        assert!(report.coverage.complete);
+        assert_eq!(report.announced_count, 4);
+        assert_eq!(report.ipv6_count, 1);
+    }
+
+    /// 生の件数 (8) は limit (4) を超えるが、重複除去後 (4) は limit 以下:
+    /// 上限超過の注記は出ず、complete のまま (重複除去前の件数で判定しない)。
+    #[tokio::test]
+    async fn collect_limit_is_judged_after_dedup() {
+        let src = RawPrefixSource::new(&RAW_PREFIXES);
+        let input = collect(src, 64500, 4).await.unwrap();
+        assert!(input.notes.is_empty(), "got: {:?}", input.notes);
+        let report = crate::report::Report::build(&input, run_checks(&input));
+        assert_eq!(report.coverage.announced, 4);
+        assert_eq!(report.coverage.checked, 4);
+        assert!(report.coverage.complete);
+    }
+
+    /// 重複除去後の件数が limit を超えるときは、その件数 (4) で注記が出て、
+    /// 検証対象は正規化・ソート後の先頭 limit 件になる。
+    #[tokio::test]
+    async fn collect_over_limit_after_dedup_reports_deduplicated_count() {
+        let src = RawPrefixSource::new(&RAW_PREFIXES);
+        let input = collect(src, 64500, 3).await.unwrap();
+        assert_eq!(
+            input.notes,
+            vec![
+                "広報プレフィックスが4件あるため、RPKI検証は先頭3件に制限しました (--limit で変更可)"
+                    .to_string()
+            ]
+        );
+        assert_eq!(
+            input.rpki.keys().cloned().collect::<Vec<_>>(),
+            vec!["192.0.2.0/24", "198.51.100.0/24", "2001:db8::/32"]
+        );
+        let report = crate::report::Report::build(&input, run_checks(&input));
+        assert_eq!(report.coverage.announced, 4);
+        assert_eq!(report.coverage.checked, 3);
+        assert!(!report.coverage.complete);
+    }
+
     /// serve 用でも `limit = 0` の拒否は共通 (serve は固定値なので実際には到達しない)。
     #[tokio::test]
     async fn collect_for_serve_rejects_limit_zero() {
