@@ -39,7 +39,7 @@ cargo build --release
 # ライブ診断 (RIPEstat / PeeringDB / whois.radb.net に問い合わせ)
 ashealth check <AS番号>              # 例: ashealth check AS64496
 ashealth check <AS番号> --json       # JSONで全文出力
-ashealth check <AS番号> --limit 100  # RPKI検証するprefix数の上限を変更 (既定50。0は指定不可。--config を使うとき(AS番号は付けない)は --limit は無視され、設定ファイルの [defaults] の limit を使用。--limit 0 も無視)
+ashealth check <AS番号> --limit 100  # RPKI検証するprefix数の上限を変更 (既定50。0は指定不可。check --config(AS番号は付けない)では無視。詳細は下の「RPKI検証のサンプリングと被覆状況」章)
 
 # オフラインデモ (バンドルされた架空のAS64500フィクスチャを使用)
 ashealth check --demo

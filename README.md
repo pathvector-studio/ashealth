@@ -51,7 +51,7 @@ ashealth report          # periodic digest across your ASes (score trend + top f
 ```bash
 ashealth check AS64496                # live (RIPEstat / PeeringDB / whois.radb.net)
 ashealth check AS64496 --json         # full structured output
-ashealth check AS64496 --limit 100    # cap prefixes sent for RPKI validation (default 50; 0 is rejected; ignored with --config, which uses the config file's [defaults] limit)
+ashealth check AS64496 --limit 100    # cap prefixes sent for RPKI validation (default 50; 0 is rejected; ignored with `check --config` (no AS number); details below)
 ```
 
 It queries the four sources, runs seven checks, and prints a report ending in a **score out of 100** and a letter grade (**A** 90+ / **B** 75+ / **C** 60+ / **D** 40+ / **E** below 40).
