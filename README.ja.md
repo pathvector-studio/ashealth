@@ -493,7 +493,7 @@ cron 例(6時間ごとに複数ASをまとめて監視):
 を1AS1ブロックで出力し、先頭に **対象AS数・平均スコア・全AS中もっとも深刻な所見(最重要アクション)**
 をまとめたヘッダを付けます。`--config` が必須です(単体AS向けの入力はありません)。
 
-`limit` は `watch --config` と同じく設定ファイルの `[defaults]` の `limit`(既定 50。AS個別の `limit` はありません)を使います。`[defaults]` に `limit = 0` を書いても設定の読み込み時には弾かれず、実行時(各ASのチェック実行時)に拒否されます。`report` では全ASについて標準エラー出力に `report: ASxxxx (名前) の集計に失敗: ...` が出てそのASは集計から外れ(状態ファイルは書かれないので、履歴も `last_report_at` も進みません)、標準出力には `対象AS数: 0件   平均スコア: 0点` のヘッダだけが出ます(`--json` では `as_count: 0` と `blocks: []`)。終了コードは 0 のままなので、cron で使う場合は標準エラー出力(ログ)を確認してください。`--webhook` を付けていれば、この0件のサマリも送信されます。`--webhook` を付けて送信に成功すると、(0件のサマリのときに限らず)標準出力のレポートの後ろに `  → Webhook通知を送信しました` の行が出ます(`--json` でも JSON の後に同じ行が出るので、標準出力をそのまま JSON としてパースすると壊れます)。失敗した場合は標準エラー出力に `report: Webhook通知に失敗しました: ...` が出ます。なお `report` が使う webhook は `--webhook` だけで、設定ファイルの `webhook`(AS個別・`[defaults]`)は読みません。
+`limit` は `watch --config` と同じく設定ファイルの `[defaults]` の `limit`(既定 50。AS個別の `limit` はありません)を使います。`[defaults]` に `limit = 0` を書いても設定の読み込み時には弾かれず、実行時(各ASのチェック実行時)に拒否されます。`report` では全ASについて標準エラー出力に `report: ASxxxx (名前) の集計に失敗: ...` が出てそのASは集計から外れ(状態ファイルは書かれないので、履歴も `last_report_at` も進みません)、標準出力には `対象AS数: 0件   平均スコア: 0点` のヘッダだけが出ます(`--json` では `as_count: 0` と `blocks: []`)。終了コードは 0 のままなので、cron で使う場合は標準エラー出力(ログ)を確認してください。`--webhook` を付けていれば、この0件のサマリも送信されます(送信成功・失敗時の表示は、下の `--webhook` の説明を参照)。なお `report` が使う webhook は `--webhook` だけで、設定ファイルの `webhook`(AS個別・`[defaults]`)は読みません。
 
 ```
 ashealth report --config ~/.config/ashealth/config.toml
@@ -549,6 +549,7 @@ ashealth report --config <path> --webhook <URL>           # 完了後にDiscord 
 `--webhook` を指定すると、Discord Webhook がそのまま解釈できる日本語コンパクトサマリ
 (`content` フィールド)に加え、`as_count` / `avg_score` / `top_action` / `blocks`(各ASブロックの
 フルJSON)を含むペイロードを1回POSTします(`watch` と共通のWebhookクライアントを再利用)。
+送信に成功すると、(0件のサマリのときに限らず)標準出力のレポートの後ろに `  → Webhook通知を送信しました` の行が出ます(`--json` でも JSON の後に同じ行が出るので、標準出力をそのまま JSON としてパースすると壊れます)。失敗した場合は標準エラー出力に `report: Webhook通知に失敗しました: ...` が出ます。
 
 cron 例(週次レポートを日曜3時に送信):
 
