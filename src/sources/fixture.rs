@@ -80,8 +80,8 @@ const AS64501: FixtureSet = FixtureSet {
 };
 
 /// 要求ASN用のフィクスチャがあればそれを、なければ AS64500 を返す。
-/// AS64500 のデータをそのまま返す場合でも `as-overview` の resource は要求元 asn として
-/// 上書きされる ([`ripestat::parse_as_overview`] に asn を渡すため)。
+/// AS64500 のデータを返す場合も、`as_overview` の `asn` は要求元 ASN になる
+/// ([`ripestat::parse_as_overview`] はフィクスチャの `data.resource` を読まず、渡した asn をそのまま使うため)。
 fn fixture_for(asn: u32) -> &'static FixtureSet {
     match asn {
         64501 => &AS64501,
@@ -170,8 +170,8 @@ mod tests {
     }
 
     /// `fixture_for` が返した集合が期待の集合か判定する。
-    /// `AS64500` / `AS64501` は `const` で参照ごとにアドレスが変わるため、
-    /// `std::ptr::eq` ではなく埋め込みフィクスチャの内容で比較する。
+    /// `AS64500` / `AS64501` は `const` なので、参照のアドレスが同一になることは保証されず
+    /// `std::ptr::eq` に頼れない。そのため埋め込みフィクスチャの内容で比較する。
     fn is(set: &FixtureSet, expected: &FixtureSet) -> bool {
         set.as_overview == expected.as_overview
             && set.announced == expected.announced
@@ -371,9 +371,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unknown_asn_overview_resource_is_replaced_by_requested_asn() {
+    async fn unknown_asn_overview_uses_requested_asn_and_as64500_data() {
         let src = FixtureSource::new();
-        // フィクスチャ内の resource は "64500" だが、要求元 ASN で上書きされる。
+        // フィクスチャ内の resource（"64500"）は読まれず、asn は要求元 ASN になる。
         // holder / announced は AS64500 のフィクスチャのまま。
         for asn in [65000, 0] {
             let o = src.as_overview(asn).await.unwrap();
