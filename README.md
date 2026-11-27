@@ -40,7 +40,7 @@ Static Linux (x86_64/aarch64, musl) and macOS (Intel/Apple Silicon) binaries are
 ashealth check <ASN>     # run the health checkup and print a scored report
 ashealth fix <ASN>       # generate the artifacts you submit to fix the findings
 ashealth serve           # embedded web UI (form → report), offline-capable
-ashealth watch <ASN>     # periodic re-check, diff vs. last run, webhook on change
+ashealth watch <ASN>     # periodic re-check, diff vs. last run, webhook on first run and on change
 ashealth report          # periodic digest across your ASes (score trend + top findings)
 ```
 
