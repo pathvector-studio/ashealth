@@ -88,7 +88,7 @@ ashealth serve --port 8080
 ashealth serve --port 8080 --rate-limit 10 --cache-ttl 600
 ```
 
-An embedded single-page UI (plain JS, no build step): enter an ASN, get the report. `--port` is the listen port (default 8080); `--rate-limit` caps `/api/check` requests per IP per minute (default 10; 0 = unlimited); `--cache-ttl` is the result-cache lifetime in seconds (default 600; 0 = off). `AS64500` and `AS64501` always answer from bundled fixtures, so the UI is demoable without any live traffic.
+An embedded single-page UI (plain JS, no build step): enter an ASN, get the report. `--port` is the listen port (default 8080); `--rate-limit` caps `/api/check` requests per IP per minute (default 10; 0 = unlimited); `--cache-ttl` is the result-cache lifetime in seconds (default 600; 0 = off). `AS64500` (unhealthy) and `AS64501` (healthy) always answer from their own bundled fixtures, so the UI is demoable without any live traffic. With `--demo`, any other ASN (except `AS0` / `AS23456`, which are still rejected) also answers offline, from the AS64500 fixture data (the response carries the ASN you entered).
 
 `serve` has no `--limit`: RPKI validation is always capped at the first 50 prefixes (the same as `check`'s default), and the `[defaults]` `limit` in `--config` is not used by `serve` either. The `/api/check/{asn}` JSON carries the `coverage` object described above, so a large AS is still reported as sampled.
 
@@ -185,7 +185,7 @@ Every subcommand takes `--demo`, which runs against bundled fixtures and makes n
 ```bash
 ashealth check --demo      # diagnose the unhealthy fixture AS64500 (score 28 / grade E)
 ashealth fix --demo        # generate its fix artifacts
-ashealth serve --demo      # fully offline: every ASN answers from the AS64500 fixture
+ashealth serve --demo      # fully offline: AS64501 answers from the healthy fixture, every other ASN from the AS64500 fixture
 ashealth report --config --demo   # digest over both fixtures (AS64500 unhealthy, AS64501 healthy)
 ```
 
