@@ -204,6 +204,198 @@ asn = 64500
         assert_eq!(select_webhook(&cfg.entries[0]), None);
     }
 
+    /// フィクスチャのASを1件だけチェックして結果を得る (1件なので AS間休止は発生しない)。
+    async fn demo_result(asn: u32, name: &str) -> AsCheckResult {
+        let cfg = Config {
+            interval: 21600,
+            limit: 50,
+            entries: vec![AsEntry {
+                asn,
+                name: name.to_string(),
+                webhook: None,
+            }],
+        };
+        check_all(&cfg, true).await.remove(0)
+    }
+
+    #[tokio::test]
+    async fn compact_summary_line_unhealthy_fixture() {
+        // AS64500 (不健全): スコア28点・グレードE・FAIL 3件 / WARN 5件
+        let r = demo_result(64500, "本番AS").await;
+        assert_eq!(
+            compact_summary_line(&r),
+            "  本番AS         AS64500    スコア  28点 グレードE  (FAIL 3件 / WARN 5件)"
+        );
+    }
+
+    #[tokio::test]
+    async fn compact_summary_line_healthy_fixture() {
+        // AS64501 (健全): スコアは3桁で右寄せ、FAIL/WARN は0件
+        let r = demo_result(64501, "検証AS").await;
+        assert_eq!(
+            compact_summary_line(&r),
+            "  検証AS         AS64501    スコア 100点 グレードA  (FAIL 0件 / WARN 0件)"
+        );
+    }
+
+    #[tokio::test]
+    async fn compact_summary_line_counts_only_fail_and_warn() {
+        // INFO は FAIL/WARN どちらにも数えない
+        let mut r = demo_result(64500, "x").await;
+        let sev_count = |r: &AsCheckResult, s: checks::Severity| {
+            r.report.findings.iter().filter(|f| f.severity == s).count()
+        };
+        assert!(sev_count(&r, checks::Severity::Fail) > 0);
+        r.report
+            .findings
+            .retain(|f| f.severity == checks::Severity::Info);
+        let line = compact_summary_line(&r);
+        assert!(line.ends_with("(FAIL 0件 / WARN 0件)"), "{line}");
+    }
+
+    #[tokio::test]
+    async fn compact_summary_line_padding_and_overflow() {
+        let mut r = demo_result(64500, "ab").await;
+        // 名前は文字数で12桁左寄せ、ASNは8桁左寄せ、スコアは3桁右寄せ
+        r.report.score = 5;
+        r.report.grade = 'F';
+        assert_eq!(
+            compact_summary_line(&r),
+            "  ab           AS64500    スコア   5点 グレードF  (FAIL 3件 / WARN 5件)"
+        );
+        // 12文字を超える名前・8桁を超えるASNは切り詰めずそのまま出る (列がずれる)
+        r.entry.name = "とても長い名前のラベルです".to_string(); // 13文字
+        r.entry.asn = 4_200_000_000;
+        let line = compact_summary_line(&r);
+        assert!(
+            line.starts_with("  とても長い名前のラベルです AS4200000000 スコア"),
+            "{line}"
+        );
+    }
+
+    #[test]
+    fn cycle_summary_line_format() {
+        assert_eq!(
+            cycle_summary_line(2, 1),
+            "ashealth watch --config: 2件のASをチェック — 変化 1件"
+        );
+        // 0件でも省略されず、桁の埋めもない
+        assert_eq!(
+            cycle_summary_line(0, 0),
+            "ashealth watch --config: 0件のASをチェック — 変化 0件"
+        );
+        assert_eq!(
+            cycle_summary_line(120, 15),
+            "ashealth watch --config: 120件のASをチェック — 変化 15件"
+        );
+    }
+
+    #[test]
+    fn select_webhook_per_as_wins_even_without_defaults() {
+        // defaults 無し・AS個別のみ設定
+        let toml = r#"
+[[as]]
+asn = 64500
+webhook = "https://example.com/only-per-as"
+
+[[as]]
+asn = 64501
+"#;
+        let cfg = config::parse(toml).unwrap();
+        assert_eq!(
+            select_webhook(&cfg.entries[0]),
+            Some("https://example.com/only-per-as")
+        );
+        assert_eq!(select_webhook(&cfg.entries[1]), None);
+    }
+
+    #[test]
+    fn select_webhook_defaults_only_applies_to_all() {
+        let toml = r#"
+[defaults]
+webhook = "https://example.com/default"
+
+[[as]]
+asn = 64500
+
+[[as]]
+asn = 64501
+"#;
+        let cfg = config::parse(toml).unwrap();
+        for e in &cfg.entries {
+            assert_eq!(select_webhook(e), Some("https://example.com/default"));
+        }
+    }
+
+    #[test]
+    fn select_webhook_does_not_fall_back_itself() {
+        // select_webhook は entry.webhook を返すだけで defaults を参照しない
+        // (継承は config::parse の段階で済んでいる)。手組みの AsEntry では None のまま。
+        let e = AsEntry {
+            asn: 64500,
+            name: "x".to_string(),
+            webhook: None,
+        };
+        assert_eq!(select_webhook(&e), None);
+        let e = AsEntry {
+            webhook: Some("https://example.com/h".to_string()),
+            ..e
+        };
+        assert_eq!(select_webhook(&e), Some("https://example.com/h"));
+    }
+
+    #[test]
+    fn select_webhook_empty_string_is_returned_as_is() {
+        // 空文字の webhook は未設定扱いにならず Some("") のまま (per-AS が defaults を上書きする)
+        let toml = r#"
+[defaults]
+webhook = "https://example.com/default"
+
+[[as]]
+asn = 64500
+webhook = ""
+"#;
+        let cfg = config::parse(toml).unwrap();
+        assert_eq!(select_webhook(&cfg.entries[0]), Some(""));
+    }
+
+    #[test]
+    fn to_json_array_empty_is_empty_array() {
+        let v = to_json_array(&[]);
+        assert_eq!(v, serde_json::json!([]));
+        assert_eq!(v.to_string(), "[]");
+    }
+
+    #[tokio::test]
+    async fn to_json_array_shape_and_label() {
+        let results = vec![
+            demo_result(64500, "本番AS").await,
+            demo_result(64501, "検証AS").await,
+        ];
+        let v = to_json_array(&results);
+        let arr = v.as_array().expect("配列であること");
+        // 入力順のまま (ソートしない)、1AS1要素
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["asn"], 64500);
+        assert_eq!(arr[0]["label"], "本番AS");
+        assert_eq!(arr[0]["score"], 28);
+        assert_eq!(arr[0]["grade"], "E");
+        assert_eq!(arr[1]["asn"], 64501);
+        assert_eq!(arr[1]["label"], "検証AS");
+        assert_eq!(arr[1]["score"], 100);
+        // 各要素は単体 Report の JSON + label キー
+        for (el, r) in arr.iter().zip(&results) {
+            let mut expected = serde_json::json!(r.report);
+            expected["label"] = serde_json::json!(r.entry.name);
+            assert_eq!(el, &expected);
+            let obj = el.as_object().unwrap();
+            for k in ["asn", "score", "grade", "findings", "coverage", "label"] {
+                assert!(obj.contains_key(k), "キー {k} がない");
+            }
+            assert!(el["findings"].is_array());
+        }
+    }
+
     #[tokio::test]
     async fn config_driven_watch_cycle_notifies_once_then_silent() {
         let toml = r#"
