@@ -80,6 +80,8 @@ ashealth report --config --webhook https://discord.com/api/webhooks/... --json
 ashealth report --config --demo        # フィクスチャ(AS64500/AS64501)で動作確認
 ```
 
+`--demo` は、バンドルされたフィクスチャで動作し、ライブのデータ源(RIPEstat / whois.radb.net / PeeringDB)には接続しません。ただし webhook は例外で、`watch --demo --webhook <URL>`、webhook を書いた設定ファイルでの `watch --config <file> --demo`、`report --demo --webhook <URL>` は、その URL へ実際に POST します(フィクスチャなのはデータだけです)。
+
 ## AS番号の検証
 
 診断対象のAS番号は、実運用上意味を持つASNかどうかを事前にチェックします(AS番号を引数で指定した

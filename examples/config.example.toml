@@ -14,7 +14,7 @@
 [defaults]
 # watch のチェック間隔 (秒)。既定 21600 = 6時間
 interval = 21600
-# 変化時にJSONをPOSTするWebhook URL (Discord Webhook互換)。省略可
+# 初回(状態ファイルが無いとき)と変化時にJSONをPOSTするWebhook URL (Discord Webhook互換)。省略可
 webhook = "https://discord.com/api/webhooks/xxxxxxxx/yyyyyyyy"
 # RPKI検証を行う広報プレフィックスの最大数 (ライブAPIの負荷抑制)。既定 50
 limit = 50
