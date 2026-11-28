@@ -134,8 +134,8 @@ struct AppState {
     /// `--config` 指定時のみ Some。指定時は index がダッシュボードになり、
     /// /api/summary が有効になる。
     config: Option<Config>,
-    /// `--demo` 指定時は true。全ASNをフィクスチャ (AS64500) で応答し、
-    /// ライブAPIには一切アクセスしないオフライン専用モードになる。
+    /// `--demo` 指定時は true。AS64501 は健全フィクスチャ、それ以外の全ASN (AS64500 を含む) は
+    /// AS64500 フィクスチャで応答し、ライブAPIには一切アクセスしないオフライン専用モードになる。
     demo: bool,
 }
 
