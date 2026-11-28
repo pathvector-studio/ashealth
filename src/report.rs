@@ -412,6 +412,308 @@ mod tests {
         assert_eq!(score, 0);
     }
 
+    fn finding(check_no: u8, severity: Severity) -> Finding {
+        Finding {
+            check_no,
+            check: "x",
+            severity,
+            subject: None,
+            message: String::new(),
+            fix: None,
+        }
+    }
+
+    fn findings_of(check_no: u8, severity: Severity, n: usize) -> Vec<Finding> {
+        (0..n).map(|_| finding(check_no, severity)).collect()
+    }
+
+    #[test]
+    fn score_is_100_without_findings() {
+        let (score, deductions) = compute_score(&[]);
+        assert_eq!(score, 100);
+        assert!(deductions.is_empty());
+    }
+
+    /// 各ルールの「1件あたりの減点」。(チェック番号, 重大度, 減点, ラベル)
+    #[test]
+    fn score_single_finding_deducts_per_rule_points() {
+        let cases = [
+            (2u8, Severity::Fail, 25, "RPKI invalidな広報"),
+            (1, Severity::Fail, 10, "ROA未作成"),
+            (4, Severity::Warn, 5, "IRR未登録"),
+            (6, Severity::Warn, 5, "IRR origin不一致"),
+            (5, Severity::Warn, 4, "陳腐化したIRRオブジェクト"),
+            (3, Severity::Warn, 3, "未使用ROA"),
+            (7, Severity::Warn, 10, "PeeringDB未登録"),
+            (7, Severity::Info, 3, "PeeringDB情報不足"),
+        ];
+        for (no, sev, points, label) in cases {
+            let (score, deductions) = compute_score(&[finding(no, sev)]);
+            assert_eq!(score, 100 - points, "check {no} {sev:?}");
+            assert_eq!(deductions.len(), 1, "check {no} {sev:?}");
+            assert_eq!(deductions[0].label, label);
+            assert_eq!(deductions[0].count, 1);
+            assert_eq!(deductions[0].points, points);
+        }
+    }
+
+    /// 各ルールの上限 (cap) ちょうどと、その1件手前・1件超過。
+    #[test]
+    fn score_deduction_is_capped_per_rule() {
+        // (チェック番号, 重大度, 1件あたり, 上限)
+        let cases = [
+            (2u8, Severity::Fail, 25, 50),
+            (1, Severity::Fail, 10, 30),
+            (4, Severity::Warn, 5, 15),
+            (6, Severity::Warn, 5, 10),
+            (5, Severity::Warn, 4, 12),
+            (3, Severity::Warn, 3, 9),
+            (7, Severity::Warn, 10, 10),
+            (7, Severity::Info, 3, 3),
+        ];
+        for (no, sev, per, cap) in cases {
+            let to_cap = (cap / per) as usize;
+            let (score, d) = compute_score(&findings_of(no, sev, to_cap));
+            assert_eq!(score, 100 - cap, "cap ちょうど: check {no} {sev:?}");
+            assert_eq!(d[0].points, cap);
+            assert_eq!(d[0].count, to_cap);
+
+            // 上限を超えても減点は増えず、count だけ増える
+            let (score, d) = compute_score(&findings_of(no, sev, to_cap + 5));
+            assert_eq!(score, 100 - cap, "cap 超過: check {no} {sev:?}");
+            assert_eq!(d[0].points, cap);
+            assert_eq!(d[0].count, to_cap + 5);
+        }
+    }
+
+    /// 上限未満では減点は「件数 × 1件あたり」(陳腐化IRR: 4点/件 × 2件 = 8点)。
+    #[test]
+    fn score_below_cap_is_count_times_per() {
+        let (score, d) = compute_score(&findings_of(5, Severity::Warn, 2));
+        assert_eq!(score, 92);
+        assert_eq!(d[0].points, 8);
+        assert_eq!(d[0].count, 2);
+    }
+
+    #[test]
+    fn score_sums_multiple_rules() {
+        let mut findings = Vec::new();
+        findings.extend(findings_of(2, Severity::Fail, 1)); // -25
+        findings.extend(findings_of(1, Severity::Fail, 2)); // -20
+        findings.extend(findings_of(4, Severity::Warn, 1)); // -5
+        findings.extend(findings_of(7, Severity::Info, 1)); // -3
+        let (score, d) = compute_score(&findings);
+        assert_eq!(score, 100 - 25 - 20 - 5 - 3);
+        assert_eq!(d.iter().map(|x| x.points).sum::<i32>(), 53);
+        // 内訳の順序は RULES の順 (入力順ではない)
+        let labels: Vec<&str> = d.iter().map(|x| x.label).collect();
+        assert_eq!(
+            labels,
+            [
+                "RPKI invalidな広報",
+                "ROA未作成",
+                "IRR未登録",
+                "PeeringDB情報不足"
+            ]
+        );
+    }
+
+    /// 入力順を入れ替えても結果は同じ。
+    #[test]
+    fn score_is_independent_of_finding_order() {
+        let a = vec![
+            finding(4, Severity::Warn),
+            finding(2, Severity::Fail),
+            finding(7, Severity::Info),
+        ];
+        let mut b = a.clone();
+        b.reverse();
+        let (sa, da) = compute_score(&a);
+        let (sb, db) = compute_score(&b);
+        assert_eq!(sa, sb);
+        let la: Vec<_> = da.iter().map(|x| (x.label, x.count, x.points)).collect();
+        let lb: Vec<_> = db.iter().map(|x| (x.label, x.count, x.points)).collect();
+        assert_eq!(la, lb);
+    }
+
+    /// 同一内容 (check_no・severity・subject・message が同じ) の所見も重複排除されず、
+    /// 1件ずつ数えられる。
+    #[test]
+    fn score_counts_identical_findings_separately() {
+        let mut f = finding(1, Severity::Fail);
+        f.subject = Some("192.0.2.0/24".into());
+        f.message = "same".into();
+        let (score, d) = compute_score(&[f.clone(), f.clone()]);
+        assert_eq!(score, 80);
+        assert_eq!(d[0].count, 2);
+        assert_eq!(d[0].points, 20);
+    }
+
+    /// Ok 所見はどのチェック番号でも減点されない。
+    #[test]
+    fn score_ignores_ok_findings() {
+        let findings: Vec<Finding> = (1..=7u8)
+            .flat_map(|no| findings_of(no, Severity::Ok, 3))
+            .collect();
+        let (score, d) = compute_score(&findings);
+        assert_eq!(score, 100);
+        assert!(d.is_empty());
+    }
+
+    /// (チェック番号, 重大度) が RULES に無い組み合わせは減点されない。
+    #[test]
+    fn score_ignores_unmatched_check_and_severity_pairs() {
+        let mut findings = Vec::new();
+        findings.extend(findings_of(2, Severity::Warn, 3)); // 2 は Fail のみ
+        findings.extend(findings_of(1, Severity::Warn, 3)); // 1 は Fail のみ
+        findings.extend(findings_of(4, Severity::Fail, 3)); // 4 は Warn のみ
+        findings.extend(findings_of(3, Severity::Info, 3)); // 3 は Warn のみ
+        findings.extend(findings_of(7, Severity::Fail, 3)); // 7 は Warn / Info のみ
+        findings.extend(findings_of(0, Severity::Fail, 3)); // 範囲外のチェック番号
+        findings.extend(findings_of(8, Severity::Warn, 3));
+        let (score, d) = compute_score(&findings);
+        assert_eq!(score, 100);
+        assert!(d.is_empty());
+    }
+
+    /// チェック7は WARN と INFO が別ルールとして独立に集計される。
+    #[test]
+    fn score_check7_warn_and_info_are_separate_rules() {
+        let mut findings = findings_of(7, Severity::Warn, 1);
+        findings.extend(findings_of(7, Severity::Info, 2));
+        let (score, d) = compute_score(&findings);
+        assert_eq!(score, 100 - 10 - 3);
+        assert_eq!(d.len(), 2);
+        assert_eq!(
+            (d[0].label, d[0].count, d[0].points),
+            ("PeeringDB未登録", 1, 10)
+        );
+        assert_eq!(
+            (d[1].label, d[1].count, d[1].points),
+            ("PeeringDB情報不足", 2, 3)
+        );
+    }
+
+    /// 全ルールの上限合計は 139 点で 100 を超えるため、0 でクランプされる。
+    /// 上限合計の手前 (139 - 100 = 39 点分) では 0 に達しない。
+    #[test]
+    fn score_clamps_at_zero_and_never_negative() {
+        let mut findings = Vec::new();
+        findings.extend(findings_of(2, Severity::Fail, 2)); // -50
+        findings.extend(findings_of(1, Severity::Fail, 3)); // -30
+        findings.extend(findings_of(4, Severity::Warn, 3)); // -15
+        let (score, _) = compute_score(&findings);
+        assert_eq!(score, 5);
+
+        findings.extend(findings_of(6, Severity::Warn, 1)); // -5 → ちょうど 0
+        let (score, _) = compute_score(&findings);
+        assert_eq!(score, 0);
+
+        findings.extend(findings_of(6, Severity::Warn, 1)); // さらに -5 → 負にならず 0
+        let (score, d) = compute_score(&findings);
+        assert_eq!(score, 0);
+        // 内訳の合計は 100 を超えうる (クランプされるのはスコアだけ)
+        assert_eq!(d.iter().map(|x| x.points).sum::<i32>(), 105);
+    }
+
+    #[test]
+    fn grade_covers_every_grade_at_thresholds() {
+        let cases = [
+            (100, 'A'),
+            (99, 'A'),
+            (90, 'A'),
+            (89, 'B'),
+            (75, 'B'),
+            (74, 'C'),
+            (60, 'C'),
+            (59, 'D'),
+            (40, 'D'),
+            (39, 'E'),
+            (1, 'E'),
+            (0, 'E'),
+        ];
+        for (score, expected) in cases {
+            assert_eq!(grade(score), expected, "score {score}");
+        }
+    }
+
+    /// 範囲外 (compute_score は 0-100 を返すので通常は到達しない) の入力の現状の挙動:
+    /// 負数は E、100 超も `90..=100` に入らず E になる。
+    #[test]
+    fn grade_out_of_range_scores_fall_to_e() {
+        assert_eq!(grade(-1), 'E');
+        assert_eq!(grade(i32::MIN), 'E');
+        assert_eq!(grade(101), 'E');
+        assert_eq!(grade(i32::MAX), 'E');
+    }
+
+    #[test]
+    fn grade_comment_per_grade() {
+        assert_eq!(
+            grade_comment('A'),
+            "良好 — 4つの情報源がきれいに揃っています"
+        );
+        assert_eq!(grade_comment('B'), "概ね良好 — 軽微なズレのみです");
+        assert_eq!(grade_comment('C'), "要改善 — 情報源間のズレが目立ちます");
+        assert_eq!(
+            grade_comment('D'),
+            "不健全 — ピアフィルタや到達性に影響しうる問題があります"
+        );
+        assert_eq!(
+            grade_comment('E'),
+            "危険 — 経路が破棄される深刻な問題があります。至急対応してください"
+        );
+    }
+
+    /// A-E 以外の文字は E と同じ (最も深刻な) コメントになる。小文字も同様。
+    #[test]
+    fn grade_comment_unknown_char_falls_back_to_e_comment() {
+        let e = grade_comment('E');
+        assert_eq!(grade_comment('F'), e);
+        assert_eq!(grade_comment('a'), e);
+        assert_eq!(grade_comment('?'), e);
+    }
+
+    /// 各スコア境界で grade → grade_comment がつながり、隣のグレードと異なるコメントになる。
+    #[test]
+    fn grade_comment_follows_grade_boundaries() {
+        assert_eq!(grade_comment(grade(90)), grade_comment('A'));
+        assert_eq!(grade_comment(grade(89)), grade_comment('B'));
+        assert_eq!(grade_comment(grade(75)), grade_comment('B'));
+        assert_eq!(grade_comment(grade(74)), grade_comment('C'));
+        assert_eq!(grade_comment(grade(60)), grade_comment('C'));
+        assert_eq!(grade_comment(grade(59)), grade_comment('D'));
+        assert_eq!(grade_comment(grade(40)), grade_comment('D'));
+        assert_eq!(grade_comment(grade(39)), grade_comment('E'));
+        assert_ne!(grade_comment('A'), grade_comment('B'));
+        assert_ne!(grade_comment('B'), grade_comment('C'));
+        assert_ne!(grade_comment('C'), grade_comment('D'));
+        assert_ne!(grade_comment('D'), grade_comment('E'));
+    }
+
+    /// `severity_tag` は ANSI 装飾付き (太字 `ESC[1m` → 前景色 → 色リセット `ESC[39m` → `ESC[0m`) の
+    /// 4文字ラベルを返す。
+    /// OK は前後に空白を入れて4桁に揃える。
+    #[test]
+    fn severity_tag_per_severity() {
+        assert_eq!(
+            severity_tag(Severity::Ok),
+            "\u{1b}[1m\u{1b}[32m OK \u{1b}[39m\u{1b}[0m"
+        );
+        assert_eq!(
+            severity_tag(Severity::Info),
+            "\u{1b}[1m\u{1b}[36mINFO\u{1b}[39m\u{1b}[0m"
+        );
+        assert_eq!(
+            severity_tag(Severity::Warn),
+            "\u{1b}[1m\u{1b}[33mWARN\u{1b}[39m\u{1b}[0m"
+        );
+        assert_eq!(
+            severity_tag(Severity::Fail),
+            "\u{1b}[1m\u{1b}[31mFAIL\u{1b}[39m\u{1b}[0m"
+        );
+    }
+
     fn healthy_input_with(announced_count: usize, checked_count: usize) -> HealthInput {
         use crate::sources::{AsOverview, RpkiStatus};
         use std::collections::BTreeMap;
