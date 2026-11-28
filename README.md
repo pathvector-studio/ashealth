@@ -56,6 +56,8 @@ ashealth check AS64496 --limit 100    # cap prefixes sent for RPKI validation (d
 
 It queries the four sources, runs seven checks, and prints a report ending in a **score out of 100** and a letter grade (**A** 90+ / **B** 75+ / **C** 60+ / **D** 40+ / **E** below 40).
 
+Only `score` stops at 0: the per-rule `points` in the JSON `deductions` array are not clamped to 100 in total, so their sum can exceed 100.
+
 | # | Check | Verdict |
 |---|-------|---------|
 | 1 | announced prefix has no covering ROA | **FAIL** |
